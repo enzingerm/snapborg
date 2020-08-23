@@ -1,0 +1,37 @@
+# snapborg sample configuration file. Default values are used for the sample
+# configuration, thus can be omitted or changed
+
+
+# List of mappings of snapper configs to their borg repos
+configs:
+    # MANDATORY: name of the snapper config
+  - name: ~
+    # MANDATORY: borg repo target, e. g. backupuser@backuphost:reponame
+    repo: ~
+    # if this is set to true, borg does not neccessarily fail when a backup fails
+    fault_tolerant_mode: false
+    # snapborg fails when the most recent snapshot transferred successfully is
+    # older than the time period given here. Set to '0d' to disable this behaviour
+    last_backup_max_age: 0d
+    # archive creation/storage options
+    storage:
+      # use either none or repokey encryption, defaults to none
+      encryption: none
+      # MANDATORY when using repokey: literal key passphrase or path to file
+      # containing the key passphrase. Ignored when using none encryption
+      encryption_passphrase: ~
+      # compression configuration, see borg manual
+      compression: auto,zstd,4
+
+    # define retention settings for borg independently from snapper
+    retention:
+      keep_last: 1
+      keep_hourly: 0
+      keep_daily: 7
+      keep_weekly: 4
+      keep_monthly: 3
+      keep_yearly: 5
+    # exclude patterns (see borg help patterns)
+    exclude_patterns: []
+
+
