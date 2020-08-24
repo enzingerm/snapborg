@@ -68,10 +68,10 @@ def main():
     configs = get_configs(cfg, args.snapper_config)
 
     if args.mode == "init":
-        init(cfg, args.dryrun)
+        init(cfg, snapper_configs=configs, dryrun=args.dryrun)
 
     elif args.mode == "prune":
-        prune(cfg, args.dryrun)
+        prune(cfg, snapper_configs=configs, dryrun=args.dryrun)
 
     elif args.mode == "backup":
         backup(cfg, snapper_configs=configs, recreate=args.recreate, dryrun=args.dryrun)
@@ -80,7 +80,7 @@ def main():
         list_snapshots(cfg, configs=configs)
 
     elif args.mode == "clean-snapper":
-        clean_snapper(cfg, dryrun=args.dryrun)
+        clean_snapper(cfg, snapper_configs=configs, dryrun=args.dryrun)
 
     else:
         raise Exception("Unknown program mode")
@@ -220,24 +220,24 @@ def backup_candidate(snapper_config, borg_repo, candidate, recreate,
         return False
 
 
-def prune(cfg, dryrun):
-    for config in cfg["configs"]:
+def prune(cfg, snapper_configs, dryrun):
+    for config in snapper_configs:
         BorgRepo.create_from_config(config).prune(dryrun=dryrun)
 
 
-def init(cfg, dryrun):
+def init(cfg, snapper_configs, dryrun):
     """
     Create new borg archives in none or in repokey mode
     """
-    for config in cfg["configs"]:
+    for config in snapper_configs:
         BorgRepo.create_from_config(config).init(dryrun=dryrun)
 
 
-def clean_snapper(cfg, dryrun):
+def clean_snapper(cfg, snapper_configs, dryrun):
     """
     Clean snapper userdata from snapborg specific settings
     """
-    for config in cfg["configs"]:
+    for config in snapper_configs:
         snapper_config = SnapperConfig.get(config["name"])
         snapshots = snapper_config.get_snapshots()
         for s in snapshots:
