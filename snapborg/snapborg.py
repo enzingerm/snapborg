@@ -205,7 +205,7 @@ def backup_candidate(snapper_config, borg_repo, candidate, recreate,
                      exclude_patterns, dryrun=False):
     print(f"Backing up snapshot number {candidate.get_number()} "
           f"from {candidate.get_date().isoformat()}...")
-    path_to_backup = snapper_config.get_path()
+    path_to_backup = candidate.get_path()
     backup_name = f"{snapper_config.name}-{candidate.get_number()}-{candidate.get_date().isoformat()}"
     try:
         if recreate:
