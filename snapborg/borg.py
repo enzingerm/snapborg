@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+from subprocess import CalledProcessError
 
 from .util import restrict_keys, selective_merge
 
@@ -147,7 +148,17 @@ def launch_borg(args, password=None, print_output=False, dryrun=False):
     if not dryrun:
         env = {'BORG_PASSPHRASE': password} if password else {}
         # TODO: parse output from JSON log lines
-        subprocess.run(cmd,
-                       stdout=(None if print_output else subprocess.PIPE),
-                       stderr=(None if print_output else subprocess.STDOUT),
-                       env=env, check=True)
+        try:
+            if print_output:
+                subprocess.run(cmd, env=env, check=True)
+            else:
+                subprocess.check_output(cmd,
+                                        stderr=subprocess.STDOUT,
+                                        env=env)
+        except CalledProcessError as e:
+            if e.returncode == 1:
+                # warning(s) happened, don't raise
+                if not print_output:
+                    print(f"Borg command execution gave warnings:\n{e.output.decode()}")
+            else:
+                raise
