@@ -177,9 +177,10 @@ def backup_config(config, recreate, dryrun):
             **retention_config) if(not snapshot.is_backed_up() or recreate)
     ]
 
-    results = [ backup_candidate(snapper_config, repo, candidate, recreate,
-                                config["exclude_patterns"], dryrun=dryrun)
-               for candidate in candidates ]
+    with snapper_config.prevent_cleanup(dryrun=dryrun):
+        results = [ backup_candidate(snapper_config, repo, candidate, recreate,
+                                    config["exclude_patterns"], dryrun=dryrun)
+                for candidate in candidates ]
     has_error = any(not result for result in results)
 
     # possibly accept any error during backup only if fault tolerant mode is active!

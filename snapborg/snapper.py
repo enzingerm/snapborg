@@ -1,6 +1,7 @@
 import json
 import subprocess
 from datetime import datetime
+from contextlib import contextmanager
 
 from packaging import version
 
@@ -35,14 +36,16 @@ def run_snapper(args, config: str = None, dryrun=False):
     if dryrun:
         print(args_new)
         return None
-    output = subprocess.check_output(args_new).decode().strip()
-    return json.loads(output) if output != "" else None
+    else:
+        output = subprocess.check_output(args_new).decode().strip()
+        return json.loads(output) if output != "" else None
 
 
 class SnapperConfig:
     def __init__(self, name: str, settings):
         self.name = name
         self.settings = settings
+        self._snapshots = None
 
     def is_timeline_enabled(self):
         return self.settings["TIMELINE_CREATE"] == "yes"
@@ -51,16 +54,33 @@ class SnapperConfig:
         return self.settings["SUBVOLUME"]
 
     def get_snapshots(self):
-        return [
-            SnapperSnapshot(self, info)
-            for info in run_snapper(["list", "--disable-used-space"], self.name)[self.name]
-            # exclude the currently "live" snapshot
-            if info["number"] != 0
-        ]
+        if not self._snapshots:
+            self._snapshots = [
+                SnapperSnapshot(self, info)
+                for info in run_snapper(["list", "--disable-used-space"], self.name)[self.name]
+                # exclude the currently "live" snapshot
+                if info["number"] != 0
+            ]
+        return self._snapshots
 
     @classmethod
     def get(cls, config_name: str):
         return cls(config_name, run_snapper(["get-config"], config_name))
+    
+    @contextmanager
+    def prevent_cleanup(self, dryrun=False):
+        """
+        Return a context manager for this snapper config where each snapshot
+        is prevented from being cleaned up by the timeline cleanup process
+        """
+        for s in self.get_snapshots():
+            s.prevent_cleanup(dryrun=dryrun)
+        
+        try:
+            yield self
+        finally:
+            for s in self.get_snapshots():
+                s.restore_cleanup_state(dryrun=dryrun)
 
 
 class SnapperSnapshot:
@@ -71,12 +91,13 @@ class SnapperSnapshot:
             self._is_backed_up = True
         else:
             self._is_backed_up = False
+        self._cleanup = info["cleanup"]
 
     def get_date(self):
         return datetime.fromisoformat(self.info["date"])
 
     def get_path(self):
-        return f"{self.config.get_path()}/.snapshots/{self.info['number']}/snapshot"
+        return f"{self.config.get_path()}/.snapshots/{self.get_number()}/snapshot"
 
     def is_backed_up(self):
         return self._is_backed_up
@@ -86,10 +107,29 @@ class SnapperSnapshot:
 
     def purge_userdata(self, dryrun=False):
         run_snapper(
-            ["modify", "--userdata", "snapborg_backup=", f"{self.info['number']}"],
+            ["modify", "--userdata", "snapborg_backup=", f"{self.get_number()}"],
             self.config.name, dryrun=dryrun)
 
     def set_backed_up(self, dryrun=False):
         run_snapper(["modify", "--userdata", "snapborg_backup=true",
-                     f"{self.info['number']}"], self.config.name, dryrun=dryrun)
+                     f"{self.get_number()}"], self.config.name, dryrun=dryrun)
         self._is_backed_up = True
+
+    def prevent_cleanup(self, dryrun=False):
+        """
+        Prevents this snapshot from being cleaned up
+        """
+
+        run_snapper(
+            ["modify", "--cleanup-algorithm", "", f"{self.get_number()}"],
+            self.config.name, dryrun=dryrun
+        )
+
+    def restore_cleanup_state(self, dryrun=False):
+        """
+        Restores the cleanup algorithm for this snapshot
+        """
+        run_snapper(
+            ["modify", "--cleanup-algorithm", self._cleanup, f"{self.get_number()}"],
+            self.config.name, dryrun=dryrun
+        )
