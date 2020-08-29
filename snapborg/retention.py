@@ -41,13 +41,13 @@ def get_retained_snapshots(snapshots, date_key, keep_last=1, keep_minutely=0, ke
             start, end = interval
             snapshots_to_consider, snapshots_remaining = split(
                 snapshots_remaining, lambda x: x[0] >= start and x[0] < end)
-            latest_snapshot = max(
+            first_snapshot = min(
                 snapshots_to_consider,
                 key=lambda x: x[0],
                 default=None
             )
-            if latest_snapshot is not None:
-                retained.add(latest_snapshot[1])
+            if first_snapshot is not None:
+                retained.add(first_snapshot[1])
                 nr_keep -= 1
             interval = (prev_date_fn(interval[0]), interval[0])
     return list(retained)
