@@ -15,7 +15,8 @@ def get_retained_snapshots(snapshots, date_key, keep_last=1, keep_minutely=0, ke
     retained = set()
     with_date = sorted([(date_key(snapshot), snapshot)
                         for snapshot in snapshots], key=lambda entry: entry[0])
-    retained.update(it[1] for it in with_date[-keep_last:])
+    if keep_last > 0:
+        retained.update(it[1] for it in with_date[-keep_last:])
     # Transform each retainment setting (minutely, hourly, ...) into a tuple of the following form:
     # (<snapshots to keep>,
     #  <lambda to calculate (given interval start time) -> (start time of the preceding interval)>
