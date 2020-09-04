@@ -68,18 +68,21 @@ class SnapperConfig:
         return cls(config_name, run_snapper(["get-config"], config_name))
     
     @contextmanager
-    def prevent_cleanup(self, dryrun=False):
+    def prevent_cleanup(self, snapshots=None, dryrun=False):
         """
         Return a context manager for this snapper config where each snapshot
         is prevented from being cleaned up by the timeline cleanup process
         """
-        for s in self.get_snapshots():
+        if not snapshots:
+            snapshots = self.get_snapshots()
+
+        for s in snapshots:
             s.prevent_cleanup(dryrun=dryrun)
         
         try:
             yield self
         finally:
-            for s in self.get_snapshots():
+            for s in snapshots:
                 s.restore_cleanup_state(dryrun=dryrun)
 
 

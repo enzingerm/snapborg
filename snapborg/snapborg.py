@@ -177,7 +177,7 @@ def backup_config(config, recreate, dryrun):
             **retention_config) if(not snapshot.is_backed_up() or recreate)
     ]
 
-    with snapper_config.prevent_cleanup(dryrun=dryrun):
+    with snapper_config.prevent_cleanup(snapshots=candidates, dryrun=dryrun):
         results = [ backup_candidate(snapper_config, repo, candidate, recreate,
                                     config["exclude_patterns"], dryrun=dryrun)
                 for candidate in candidates ]
