@@ -19,10 +19,10 @@ from datetime import datetime, timedelta
 
 import yaml
 
-from .borg import BorgRepo
-from .retention import get_retained_snapshots
-from .snapper import SnapperConfig
-from .util import selective_merge
+from ..borg import BorgRepo
+from ..retention import get_retained_snapshots
+from ..snapper import SnapperConfig
+from ..util import selective_merge
 
 DEFAULT_CONFIG = {
     "configs": []
