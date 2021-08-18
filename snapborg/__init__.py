@@ -2,4 +2,4 @@
 snapborg package
 """
 
-VERSION = "v0.0"
+from .version import __version__

@@ -2,9 +2,11 @@
 
 from setuptools import find_packages, setup
 
+import snapborg
+
 setup(
     name="snapborg",
-    version="1.0",
+    version=snapborg.__version__,
     description="Automated backups of snapper snapshots to borg repositories",
     long_description=(
         "Backup your snapper snapshots with Borg.\nsnapborg is intended"
