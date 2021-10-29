@@ -96,12 +96,20 @@ def main():
 def list_snapshots(cfg, configs):
     print("Listing snapper snapshots:")
     for config in configs:
+        borg_repo = BorgRepo.create_from_config(config)
         snapper_config = SnapperConfig.get(config["name"])
         print(f"\tConfig {snapper_config.name} for subvol {snapper_config.get_path()}:")
         snapshots = snapper_config.get_snapshots()
+        repo_snapshot_ids = borg_repo.list_backup_ids()
         for s in snapshots:
             print(
-                f"\t\tSnapshot {s.get_number()} from {s.get_date()} is backed up: {s.is_backed_up()}")
+                "\t\tBorg repo {} has backup of snapshot {} from {}: {}".format(
+                    config["name"],
+                    s.get_number(),
+                    s.get_date(),
+                    s.get_snapborg_id() in repo_snapshot_ids,
+                )
+            )
 
 
 def get_configs(cfg, config_arg=None):
@@ -181,11 +189,13 @@ def backup_config(config, recreate, dryrun):
     repo = BorgRepo.create_from_config(config)
     # now determine which snapshots need to be backed up
     retention_config = repo.get_retention_config()
+    backed_up_snapshot_ids = {b for b in repo.list_backup_ids()}
     candidates = [
         snapshot
         for snapshot in get_retained_snapshots(
-            snapshots, lambda s: s.get_date(),
-            **retention_config) if(not snapshot.is_backed_up() or recreate)
+            snapshots, lambda s: s.get_date(), **retention_config
+        )
+        if snapshot.get_snapborg_id() not in backed_up_snapshot_ids and not recreate
     ]
 
     with snapper_config.prevent_cleanup(snapshots=candidates, dryrun=dryrun):
@@ -198,10 +208,11 @@ def backup_config(config, recreate, dryrun):
     if has_error and not config["fault_tolerant_mode"]:
         raise Exception(f"Error(s) while transferring backups for {snapper_config.name}!")
 
+    repo_snapshot_ids = repo.list_backup_ids()
     if config["last_backup_max_age"].total_seconds() > 0:
         # fail if the creation date of the newest snapshot successfully backed up is too old
         snapshots = snapper_config.get_snapshots()
-        backed_up = [ s for s in snapshots if s.is_backed_up() ]
+        backed_up = [ s for s in snapshots if s.get_snapborg_id() in repo_snapshot_ids ]
         if len(snapshots) > 0 and len(backed_up) == 0:
             raise Exception("No snapshots have been transferred to the borg repo!")
         newest_backed_up = max(
@@ -223,9 +234,15 @@ def backup_candidate(snapper_config, borg_repo, candidate, recreate,
         if recreate:
             borg_repo.delete(backup_name, dryrun=dryrun)
             candidate.purge_userdata(dryrun=dryrun)
-        borg_repo.backup(backup_name, path_to_backup, timestamp=candidate.get_date(),
-                         exclude_patterns=exclude_patterns, dryrun=dryrun)
-        candidate.set_backed_up(dryrun=dryrun)
+        snapborg_id = candidate.generate_snapborg_id(dryrun=dryrun)
+        borg_repo.backup(
+            backup_name,
+            path_to_backup,
+            timestamp=candidate.get_date(),
+            exclude_patterns=exclude_patterns,
+            snapborg_id=snapborg_id,
+            dryrun=dryrun,
+        )
         return True
     except subprocess.CalledProcessError as e:
         LOG.error(f"Error backing up snapshot number {candidate.get_number()}!\n\t{e}")
