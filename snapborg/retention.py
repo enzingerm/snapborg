@@ -42,13 +42,16 @@ def get_retained_snapshots(snapshots, date_key, keep_last=1, keep_minutely=0, ke
             start, end = interval
             snapshots_to_consider, snapshots_remaining = split(
                 snapshots_remaining, lambda x: x[0] >= start and x[0] < end)
-            first_snapshot = min(
+            # when pruning, borg keeps the last snapshot of an interval. By selecting the last
+            # snapshot here, we ensure we aren't backing up snapshots just to prune them right away
+            # https://borgbackup.readthedocs.io/en/stable/usage/prune.html#description
+            last_snapshot = max(
                 snapshots_to_consider,
                 key=lambda x: x[0],
                 default=None
             )
-            if first_snapshot is not None:
-                retained.add(first_snapshot[1])
+            if last_snapshot is not None:
+                retained.add(last_snapshot[1])
                 nr_keep -= 1
             interval = (prev_date_fn(interval[0]), interval[0])
     return list(retained)
