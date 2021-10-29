@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -48,7 +49,15 @@ class BorgRepo:
         launch_borg(borg_init_invocation, self.passphrase,
                     log_output=self.is_interactive, dryrun=dryrun)
 
-    def backup(self, backup_name, *paths, exclude_patterns=[], timestamp=None, dryrun=False):
+    def backup(
+        self,
+        backup_name,
+        *paths,
+        exclude_patterns=[],
+        timestamp=None,
+        snapborg_id=None,
+        dryrun=False,
+    ):
 
         borg_create = ["create",
                        "--one-file-system",
@@ -56,6 +65,8 @@ class BorgRepo:
                        "--exclude-caches",
                        "--checkpoint-interval", "600",
                        "--compression", self.compression]
+        if snapborg_id:
+            borg_create += ("--comment", f"snapborg_id={snapborg_id}")
         if timestamp:
             borg_create += ("--timestamp", timestamp.isoformat())
         for e in exclude_patterns:
@@ -97,6 +108,25 @@ class BorgRepo:
             log_output=self.is_interactive,
             dryrun=dryrun
         )
+
+    def list_backups(self):
+        borg_list = [
+            "list",
+            "--format",
+            "{archive} {id} {name} {start} {time} {comment}",
+            "--json",
+            f"{self.repopath}",
+        ]
+        stdout = (
+            launch_borg(borg_list, self.passphrase, log_output=False, dryrun=False)
+            or "{}"
+        )
+        data = json.loads(stdout)
+        return data.get("archives", [])
+
+    def list_backup_ids(self):
+        backup_list = self.list_backups()
+        return [backup.get("comment", "=").split("=")[1] for backup in backup_list]
 
     def get_retention_config(self):
         return self.retention
