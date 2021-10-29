@@ -150,22 +150,28 @@ def launch_borg(args, password=None, log_output=False, dryrun=False):
     cmd = ["borg"] + args
 
     LOG.debug("$ {}".format(' '.join(cmd)))
+    buffer = ""
 
     if not dryrun:
         env = {'BORG_PASSPHRASE': password} if password else {}
         # TODO: parse output from JSON log lines
-        try:
-            if log_output:
-                subprocess.run(cmd, env=env, check=True)
-            else:
-                subprocess.check_output(cmd,
-                                        stderr=subprocess.STDOUT,
-                                        env=env)
-        except CalledProcessError as e:
-            if e.returncode == 1:
-                LOG.info(line)
+
+        # launch process
+        proc = subprocess.Popen(
+            cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
+        # rather than wait for process to finish, print output in real time
+        while proc.poll() is None:
+            line = proc.stdout.readline().decode().rstrip("\n")
+            if len(line) != 0:
+                buffer += line
+                if log_output:
+                    LOG.info(line)
+        if proc.returncode != 0:
+            if proc.returncode == 1:
                 # warning(s) happened, don't raise
                 if log_output:
-                    LOG.info(f"Borg command execution gave warnings:\n{e.output.decode()}")
+                    LOG.info(f"Borg command execution gave warnings:\n{buffer}")
             else:
-                raise
+                raise CalledProcessError(cmd=cmd, returncode=proc.returncode)
+    return buffer

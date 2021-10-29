@@ -38,10 +38,10 @@ def run_snapper(args, config: str = None, dryrun=False):
     ]
     if dryrun:
         LOG.info(args_new)
-        return None
+        return {}
     else:
         output = subprocess.check_output(args_new).decode().strip()
-        return json.loads(output) if output != "" else None
+        return json.loads(output) if output != "" else {}
 
 
 class SnapperConfig:
