@@ -1,3 +1,5 @@
+import logging
+
 def selective_merge(base_obj, delta_obj, restrict_keys=False):
     """
     Recursively merge dict delta_obj into base_obj by adding all key/value
@@ -61,3 +63,13 @@ def split(data, pred):
         else:
             no.append(d)
     return (yes, no)
+
+
+def init_snapborg_logger(logger_name):
+    logger = logging.getLogger(logger_name)
+    logger.setLevel("INFO")
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    ch = logging.StreamHandler()
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    return logger
