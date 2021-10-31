@@ -71,7 +71,6 @@ class BorgRepo:
             print_output=self.is_interactive,
             dryrun=dryrun
         )
-        # TODO: run prune?
 
     def delete(self, backup_name, dryrun=False):
         borg_delete = ["delete", f"{self.repopath}::{backup_name}"]
