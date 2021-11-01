@@ -120,10 +120,12 @@ def get_configs(cfg, config_arg=None):
         val = int(res.group(1))
         c["last_backup_max_age"] = timedelta(hours=val if res.group(2) == "h" else val * 24)
 
-    return [
-        c for c in configs
-        if not config_arg or c["name"] == config_arg
-    ]
+    if config_arg:
+        configs = [ c for c in configs if c["name"] == config_arg ]
+        if len(configs) == 0:
+            raise ValueError(f"no such config \"{config_arg}\"")
+    return configs
+
 
 
 def backup(cfg, snapper_configs, recreate, dryrun):
