@@ -12,7 +12,7 @@ configs:
     repo: backupuser@backuphost:root
 ```
 
-Normally you might not want to synchronize all the snapper snapshots to the remote backup destination, thus per-repo retention settings can be configured to determine which snapshots will actually be backed up.
+Normally you might not want to synchronize all the snapper snapshots to the remote backup destination, thus per-repo retention settings can be configured to determine which snapshots will actually be backed up. Note that by default, old snapshots will be pruned from the borg archive according to the retention settings, unless the `--no-prune` flag is given.
 
 *Example*:
 
@@ -66,8 +66,9 @@ Commands:
   prune         Prune old borg backup archives
 
   backup        Backup snapper snapshots
-    --recreate  If given, all backup archives are first deleted
-                and then created from scratch
+    --recreate  Delete possibly existing borg archives and recreate them from
+                scratch
+    --no-prune  Ignore retention policy and don't prune old backups
 
   clean-snapper Delete snapborg metadata stored alongside
                 snapper snapshots
