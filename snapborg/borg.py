@@ -36,8 +36,13 @@ class BorgRepo:
         Initialize the borg repository
         """
         # TODO: should we really fail if repo already exists?
-        borg_init_invocation = ["init", "--encryption",
-                                self.encryption, self.repopath]
+        borg_init_invocation = [
+            "init",
+            "--encryption",
+            self.encryption,
+            "--make-parent-dirs",
+            self.repopath,
+        ]
         launch_borg(borg_init_invocation, self.passphrase,
                     print_output=self.is_interactive, dryrun=dryrun)
 
