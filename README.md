@@ -12,7 +12,11 @@ configs:
     repo: backupuser@backuphost:root
 ```
 
-Normally you might not want to synchronize all the snapper snapshots to the remote backup destination, thus per-repo retention settings can be configured to determine which snapshots will actually be backed up. Note that by default, old snapshots will be pruned from the borg archive according to the retention settings, unless the `--no-prune` flag is given.
+Normally you might not want to synchronize all the snapper snapshots to the remote backup destination, thus snapborg lets you configure per-repo retention settings to determine which snapshots will actually be backed up.
+
+If the snapshot did not have an associated cleanup policy, the backup will stay in the borg archive until you manually delete it. However, if the snapshot did have a cleanup policy, snapborg will keep the backup in the borg archive only until it expires according to the configured retention policy.
+
+Note that by default, old snapshots will be pruned from the borg archive when running `snapborg backup`, unless the `--no-prune` flag is given.
 
 *Example*:
 
@@ -30,6 +34,8 @@ configs:
       keep_yearly: 3
     ...
 ```
+
+In this example, the number of snapshots on your base system is irrelevant and is entirely handled by snapper itself. Your borg archive will have a maximum of 3 yearly snapshots, 6 monthly snapshots, and the latest snapshot, as well as any snapshot that you manually asked snapper to create (snapshots which don't have an associated cleanup policy).
 
 
 ### Fault tolerant mode
@@ -64,6 +70,19 @@ Commands:
                 they are already backed up
 
   prune         Prune old borg backup archives
+    --ignore-nameprefix-warning-this-is-permanent
+                        Normally, the prune algorithm would only operate on
+                        backups whose name starts with
+                        `snapborg_retentionpolicy_` prefix. This flag disables
+                        the restriction, and the pruning is run according to
+                        the snapborg retention policy on all backups
+                        regardless of their name. THIS MEANS THAT ALL BACKUPS
+                        IN YOUR BORG ARCHIVE ARE SUSCEPTIBLE TO BEING PRUNED.
+                        Use with caution.
+    --noconfirm         when using the
+                        `--ignore-nameprefix-warning-this-is-permanent` flag,
+                        snapborg will prompt you for confirmation. This flag
+                        disables the confirmation prompt.
 
   backup        Backup snapper snapshots
     --recreate  Delete possibly existing borg archives and recreate them from
