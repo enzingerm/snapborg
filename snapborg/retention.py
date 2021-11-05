@@ -54,4 +54,11 @@ def get_retained_snapshots(snapshots, date_key, keep_last=1, keep_minutely=0, ke
                 retained.add(last_snapshot[1])
                 nr_keep -= 1
             interval = (prev_date_fn(interval[0]), interval[0])
+
+    # backup all snapshots without any cleanup policy in snapper
+    retained.update(
+        snapshot[1]
+        for snapshot in with_date
+        if snapshot[1].get_cleanup_policy() is None
+    )
     return list(retained)
