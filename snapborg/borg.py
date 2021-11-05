@@ -71,7 +71,6 @@ class BorgRepo:
             print_output=self.is_interactive,
             dryrun=dryrun
         )
-        # TODO: run prune?
 
     def delete(self, backup_name, dryrun=False):
         borg_delete = ["delete", f"{self.repopath}::{backup_name}"]
@@ -79,7 +78,8 @@ class BorgRepo:
                     print_output=self.is_interactive,
                     dryrun=dryrun)
 
-    def prune(self, override_retention_settings=dict(), dryrun=False):
+    def prune(self, override_retention_settings=None, dryrun=False):
+        override_retention_settings = override_retention_settings or {}
         borg_prune_invocation = ["prune"]
         retention_settings = selective_merge(
             override_retention_settings, self.retention, restrict_keys=True)

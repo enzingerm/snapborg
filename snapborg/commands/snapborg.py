@@ -57,6 +57,8 @@ def main():
     backupcli.add_argument(
         "--recreate", action="store_true", dest="recreate",
         help="Delete possibly existing borg archives and recreate them from scratch")
+    backupcli.add_argument(
+        "--no-prune", action="store_true", help="Ignore retention policy and don't prune old backups")
     subp.add_parser("init")
     subp.add_parser("clean-snapper", help="Clean snapper snapshots from all snapborg specific "
                     "user data")
@@ -74,7 +76,8 @@ def main():
         prune(cfg, snapper_configs=configs, dryrun=args.dryrun)
 
     elif args.mode == "backup":
-        backup(cfg, snapper_configs=configs, recreate=args.recreate, dryrun=args.dryrun)
+        backup(cfg, snapper_configs=configs, recreate=args.recreate,
+                prune_old_backups=not args.no_prune, dryrun=args.dryrun)
 
     elif args.mode == "list":
         list_snapshots(cfg, configs=configs)
@@ -128,7 +131,7 @@ def get_configs(cfg, config_arg=None):
 
 
 
-def backup(cfg, snapper_configs, recreate, dryrun):
+def backup(cfg, snapper_configs, recreate, prune_old_backups, dryrun):
     """
     Backup all given snapper configs, optionally recreating the archives
     """
@@ -150,6 +153,8 @@ def backup(cfg, snapper_configs, recreate, dryrun):
 
     if has_error:
         raise Exception("Snapborg failed!")
+    elif prune_old_backups:
+        prune(cfg, snapper_configs, dryrun)
 
 
 def backup_config(config, recreate, dryrun):
