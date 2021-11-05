@@ -5,6 +5,9 @@ from contextlib import contextmanager
 
 from packaging import version
 
+from .util import init_snapborg_logger
+
+LOG = init_snapborg_logger(__name__)
 
 def check_snapper():
     """
@@ -34,7 +37,7 @@ def run_snapper(args, config: str = None, dryrun=False):
         *args
     ]
     if dryrun:
-        print(args_new)
+        LOG.info(args_new)
         return None
     else:
         output = subprocess.check_output(args_new).decode().strip()
@@ -66,7 +69,7 @@ class SnapperConfig:
     @classmethod
     def get(cls, config_name: str):
         return cls(config_name, run_snapper(["get-config"], config_name))
-    
+
     @contextmanager
     def prevent_cleanup(self, snapshots=None, dryrun=False):
         """
@@ -78,7 +81,7 @@ class SnapperConfig:
 
         for s in snapshots:
             s.prevent_cleanup(dryrun=dryrun)
-        
+
         try:
             yield self
         finally:

@@ -22,7 +22,9 @@ import yaml
 from ..borg import BorgRepo
 from ..retention import get_retained_snapshots
 from ..snapper import SnapperConfig
-from ..util import selective_merge
+from ..util import selective_merge, init_snapborg_logger, set_loglevel
+
+LOG = init_snapborg_logger(__name__)
 
 DEFAULT_CONFIG = {
     "configs": []
@@ -45,6 +47,7 @@ def main():
     cli.add_argument("--dryrun", action="store_true", help="Don't actually execute commands")
     cli.add_argument("--snapper-config", default=None, dest="snapper_config",
                      help="The name of a snapper config to operate on")
+    cli.add_argument("-v", action="count", default=0, help="increase verbosity, can be repeated twice")
     subp = cli.add_subparsers(dest="mode", required=True)
 
     subp.add_parser("prune", help="Prune the borg archives using the retention settings from the "
@@ -64,6 +67,7 @@ def main():
                     "user data")
 
     args = cli.parse_args()
+    set_loglevel(args.v)
 
     with open(args.cfg, 'r') as stream:
         cfg = selective_merge(yaml.safe_load(stream), DEFAULT_CONFIG)
@@ -142,14 +146,14 @@ def backup(cfg, snapper_configs, recreate, prune_old_backups, dryrun):
             status_map[config["name"]] = True
         except Exception as e:
             status_map[config["name"]] = e
-    print("\nBackup results:")
+    LOG.info("Backup results:")
     has_error = False
     for config_name, status in status_map.items():
         if status is True:
-            print(f"OK     {config_name}")
+            LOG.info(f"\t{config_name}:\tOK")
         else:
             has_error = True
-            print(f"FAILED {config_name}: {status}")
+            LOG.error(f"\t{config_name}: FAILED - {status}")
 
     if has_error:
         raise Exception("Snapborg failed!")
@@ -161,7 +165,7 @@ def backup_config(config, recreate, dryrun):
     """
     Backup a single snapper config
     """
-    print(f"Backing up snapshots for snapper config '{config['name']}'...")
+    LOG.info(f"Backing up snapshots for snapper config '{config['name']}'...")
     snapper_config = None
     snapshots = None
     try:
@@ -169,7 +173,7 @@ def backup_config(config, recreate, dryrun):
         # when we have the config, extract the snapshots which are not yet backed up
         snapshots = snapper_config.get_snapshots()
         if len(snapshots) == 0:
-            print("No snapshots from snapper found!")
+            LOG.warning("No snapshots from snapper found!")
             return
     except subprocess.SubprocessError:
         raise Exception(f"Failed to get snapper config {config['name']}!")
@@ -211,7 +215,7 @@ def backup_config(config, recreate, dryrun):
 
 def backup_candidate(snapper_config, borg_repo, candidate, recreate,
                      exclude_patterns, dryrun=False):
-    print(f"Backing up snapshot number {candidate.get_number()} "
+    LOG.info(f"Backing up snapshot number {candidate.get_number()} "
           f"from {candidate.get_date().isoformat()}...")
     path_to_backup = candidate.get_path()
     backup_name = f"{snapper_config.name}-{candidate.get_number()}-{candidate.get_date().isoformat()}"
@@ -224,7 +228,7 @@ def backup_candidate(snapper_config, borg_repo, candidate, recreate,
         candidate.set_backed_up(dryrun=dryrun)
         return True
     except subprocess.CalledProcessError as e:
-        print(f"Error backing up snapshot number {candidate.get_number()}!\n\t{e}")
+        LOG.error(f"Error backing up snapshot number {candidate.get_number()}!\n\t{e}")
         return False
 
 
@@ -256,5 +260,5 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(f"Snapborg failed: {e}!")
+        LOG.fatal(f"Snapborg failed: {e}!")
         sys.exit(1)

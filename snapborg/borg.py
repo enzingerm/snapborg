@@ -3,7 +3,9 @@ import subprocess
 import sys
 from subprocess import CalledProcessError
 
-from .util import restrict_keys, selective_merge
+from .util import restrict_keys, selective_merge, init_snapborg_logger
+
+LOG = init_snapborg_logger(__name__)
 
 DEFAULT_REPO_CONFIG = {
     "storage": {
@@ -44,7 +46,7 @@ class BorgRepo:
             self.repopath,
         ]
         launch_borg(borg_init_invocation, self.passphrase,
-                    print_output=self.is_interactive, dryrun=dryrun)
+                    log_output=self.is_interactive, dryrun=dryrun)
 
     def backup(self, backup_name, *paths, exclude_patterns=[], timestamp=None, dryrun=False):
 
@@ -68,14 +70,14 @@ class BorgRepo:
         launch_borg(
             borg_invocation,
             self.passphrase,
-            print_output=self.is_interactive,
+            log_output=False,
             dryrun=dryrun
         )
 
     def delete(self, backup_name, dryrun=False):
         borg_delete = ["delete", f"{self.repopath}::{backup_name}"]
         launch_borg(borg_delete, self.passphrase,
-                    print_output=self.is_interactive,
+                    log_output=self.is_interactive,
                     dryrun=dryrun)
 
     def prune(self, override_retention_settings=None, dryrun=False):
@@ -92,7 +94,7 @@ class BorgRepo:
         launch_borg(
             borg_prune_invocation,
             self.passphrase,
-            print_output=self.is_interactive,
+            log_output=self.is_interactive,
             dryrun=dryrun
         )
 
@@ -132,13 +134,13 @@ def get_password(password):
             with open(password) as pwfile:
                 password = pwfile.read().strip()
         except FileNotFoundError:
-            print("tried to use password as file, but could not find it")
+            LOG.fatal("tried to use password as file, but could not find it")
             raise
 
     return password
 
 
-def launch_borg(args, password=None, print_output=False, dryrun=False):
+def launch_borg(args, password=None, log_output=False, dryrun=False):
     """
     launch borg and supply the password by environment
 
@@ -147,14 +149,13 @@ def launch_borg(args, password=None, print_output=False, dryrun=False):
 
     cmd = ["borg"] + args
 
-    if print_output:
-        print(f"$ {' '.join(cmd)}")
+    LOG.debug("$ {}".format(' '.join(cmd)))
 
     if not dryrun:
         env = {'BORG_PASSPHRASE': password} if password else {}
         # TODO: parse output from JSON log lines
         try:
-            if print_output:
+            if log_output:
                 subprocess.run(cmd, env=env, check=True)
             else:
                 subprocess.check_output(cmd,
@@ -162,8 +163,9 @@ def launch_borg(args, password=None, print_output=False, dryrun=False):
                                         env=env)
         except CalledProcessError as e:
             if e.returncode == 1:
+                LOG.info(line)
                 # warning(s) happened, don't raise
-                if not print_output:
-                    print(f"Borg command execution gave warnings:\n{e.output.decode()}")
+                if log_output:
+                    LOG.info(f"Borg command execution gave warnings:\n{e.output.decode()}")
             else:
                 raise
