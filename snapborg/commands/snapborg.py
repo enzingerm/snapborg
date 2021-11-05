@@ -214,7 +214,14 @@ def backup_candidate(snapper_config, borg_repo, candidate, recreate,
     print(f"Backing up snapshot number {candidate.get_number()} "
           f"from {candidate.get_date().isoformat()}...")
     path_to_backup = candidate.get_path()
-    backup_name = f"{snapper_config.name}-{candidate.get_number()}-{candidate.get_date().isoformat()}"
+    backup_name = f"{snapper_config.name}_{candidate.get_number()}_{candidate.get_date().isoformat()}"
+
+    # If there's a cleanup policy associated with the snapshot, then the snapshot was automatically made by snapper.
+    # If not, the snapshot was probably manual. If the snapshot was manually taken, we probably want to let the user
+    # manually delete it from the borg archive.
+    cleanup_policy = candidate.get_cleanup_policy()
+    if cleanup_policy is not None:
+        backup_name = f"snapborg_retentionpolicy_{backup_name}"
     try:
         if recreate:
             borg_repo.delete(backup_name, dryrun=dryrun)
