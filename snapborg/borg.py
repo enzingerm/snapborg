@@ -22,13 +22,21 @@ DEFAULT_REPO_CONFIG = {
 
 
 class BorgRepo:
-    def __init__(self, repopath: str, compression: str, retention, encryption="none",
-                 passphrase=None):
+    def __init__(
+        self,
+        repopath: str,
+        compression: str,
+        retention,
+        encryption="none",
+        passphrase=None,
+        snapper_config_name: str = None,
+    ):
         self.repopath = repopath
         self.compression = compression
         self.retention = retention
         self.encryption = encryption
         self.passphrase = passphrase
+        self.snapper_config_name = snapper_config_name
         self.is_interactive = os.isatty(sys.stdout.fileno())
 
     def init(self, dryrun=False):
@@ -117,8 +125,14 @@ class BorgRepo:
             password = get_password(config["storage"]["encryption_passphrase"])
         else:
             raise Exception("Invalid or unsupported encryption mode given!")
-        return cls(borgrepo, compression, retention=retention, encryption=encryption,
-                   passphrase=password)
+        return cls(
+            borgrepo,
+            compression,
+            retention=retention,
+            encryption=encryption,
+            passphrase=password,
+            snapper_config_name=config["name"],
+        )
 
 
 def get_password(password):
