@@ -22,7 +22,7 @@ import yaml
 from ..borg import BorgRepo
 from ..retention import get_retained_snapshots
 from ..snapper import SnapperConfig
-from ..util import selective_merge, init_snapborg_logger
+from ..util import selective_merge, init_snapborg_logger, set_loglevel
 
 LOG = init_snapborg_logger(__name__)
 
@@ -47,6 +47,7 @@ def main():
     cli.add_argument("--dryrun", action="store_true", help="Don't actually execute commands")
     cli.add_argument("--snapper-config", default=None, dest="snapper_config",
                      help="The name of a snapper config to operate on")
+    cli.add_argument("-v", action="count", default=0, help="increase verbosity, can be repeated twice")
     subp = cli.add_subparsers(dest="mode", required=True)
 
     subp.add_parser("prune", help="Prune the borg archives using the retention settings from the "
@@ -66,6 +67,7 @@ def main():
                     "user data")
 
     args = cli.parse_args()
+    set_loglevel(args.v)
 
     with open(args.cfg, 'r') as stream:
         cfg = selective_merge(yaml.safe_load(stream), DEFAULT_CONFIG)
