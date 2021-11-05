@@ -139,24 +139,19 @@ def backup(cfg, snapper_configs, recreate, prune_old_backups, dryrun):
     """
     Backup all given snapper configs, optionally recreating the archives
     """
-    status_map = {}
+    failures = []
+
+    LOG.info("Backup results:")
     for config in snapper_configs:
         try:
             backup_config(config, recreate, dryrun)
-            status_map[config["name"]] = True
+            LOG.info("\t%s:\tOK", config["name"])
         except Exception as e:
-            status_map[config["name"]] = e
-    LOG.info("Backup results:")
-    has_error = False
-    for config_name, status in status_map.items():
-        if status is True:
-            LOG.info(f"\t{config_name}:\tOK")
-        else:
-            has_error = True
-            LOG.error(f"\t{config_name}: FAILED - {status}")
+            failures.append(e)
+            LOG.error("\t%s: FAILED - %s", config["name"], e)
 
-    if has_error:
-        raise Exception("Snapborg failed!")
+    if len(failures) > 0:
+        raise Exception(failures)
     elif prune_old_backups:
         prune(cfg, snapper_configs, dryrun)
 
