@@ -46,7 +46,7 @@ class BorgRepo:
         launch_borg(borg_init_invocation, self.passphrase,
                     print_output=self.is_interactive, dryrun=dryrun)
 
-    def backup(self, backup_name, *paths, exclude_patterns=[], timestamp=None, dryrun=False):
+    def backup(self, backup_name, *paths, exclude_patterns=[], timestamp=None, dryrun=False, cwd=None):
 
         borg_create = ["create",
                        "--one-file-system",
@@ -69,7 +69,8 @@ class BorgRepo:
             borg_invocation,
             self.passphrase,
             print_output=self.is_interactive,
-            dryrun=dryrun
+            dryrun=dryrun,
+            cwd=cwd
         )
 
     def delete(self, backup_name, dryrun=False):
@@ -138,7 +139,7 @@ def get_password(password):
     return password
 
 
-def launch_borg(args, password=None, print_output=False, dryrun=False):
+def launch_borg(args, password=None, print_output=False, dryrun=False, cwd=None):
     """
     launch borg and supply the password by environment
 
@@ -155,11 +156,12 @@ def launch_borg(args, password=None, print_output=False, dryrun=False):
         # TODO: parse output from JSON log lines
         try:
             if print_output:
-                subprocess.run(cmd, env=env, check=True)
+                subprocess.run(cmd, env=env, check=True, cwd=cwd)
             else:
                 subprocess.check_output(cmd,
                                         stderr=subprocess.STDOUT,
-                                        env=env)
+                                        env=env,
+                                        cwd=cwd)
         except CalledProcessError as e:
             if e.returncode == 1:
                 # warning(s) happened, don't raise
