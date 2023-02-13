@@ -230,7 +230,11 @@ def backup_candidate(snapper_config, borg_repo, candidate, recreate,
 
 def prune(cfg, snapper_configs, dryrun):
     for config in snapper_configs:
-        BorgRepo.create_from_config(config).prune(dryrun=dryrun)
+        try:
+            BorgRepo.create_from_config(config).prune(dryrun=dryrun)
+        except subprocess.CalledProcessError:
+            if not config["fault_tolerant_mode"]:
+                raise
 
 
 def init(cfg, snapper_configs, dryrun):
