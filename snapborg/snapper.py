@@ -73,7 +73,7 @@ class SnapperConfig:
         Return a context manager for this snapper config where each snapshot
         is prevented from being cleaned up by the timeline cleanup process
         """
-        if not snapshots:
+        if snapshots is None:
             snapshots = self.get_snapshots()
 
         for s in snapshots:
