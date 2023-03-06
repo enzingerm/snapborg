@@ -1,3 +1,8 @@
+import logging
+import os
+import sys
+
+
 def selective_merge(base_obj, delta_obj, restrict_keys=False):
     """
     Recursively merge dict delta_obj into base_obj by adding all key/value
@@ -61,3 +66,30 @@ def split(data, pred):
         else:
             no.append(d)
     return (yes, no)
+
+
+def set_loglevel(verbosity_level):
+    loglevel = logging.WARNING
+    if verbosity_level > 0:
+        loglevel = logging.INFO
+        if verbosity_level > 1:
+            loglevel = logging.DEBUG
+
+    for logger_name in logging.root.manager.loggerDict:
+        logging.getLogger(logger_name).setLevel(loglevel)
+    return loglevel
+
+
+def init_snapborg_logger(logger_name):
+    is_interactive = os.isatty(sys.stdout.fileno())
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.INFO)
+    if is_interactive:
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    else:
+        # if running in non-interactive mode, typically through systemd
+        formatter = logging.Formatter("%(levelname)s - %(name)s:%(lineno)d - %(message)s")
+    ch = logging.StreamHandler()
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    return logger
