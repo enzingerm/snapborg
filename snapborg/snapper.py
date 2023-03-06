@@ -2,9 +2,13 @@ import json
 import subprocess
 from datetime import datetime
 from contextlib import contextmanager
+import uuid
 
 from packaging import version
 
+from .util import init_snapborg_logger
+
+LOG = init_snapborg_logger(__name__)
 
 def check_snapper():
     """
@@ -34,11 +38,11 @@ def run_snapper(args, config: str = None, dryrun=False):
         *args
     ]
     if dryrun:
-        print(args_new)
-        return None
+        LOG.info(args_new)
+        return {}
     else:
         output = subprocess.check_output(args_new).decode().strip()
-        return json.loads(output) if output != "" else None
+        return json.loads(output) if output != "" else {}
 
 
 class SnapperConfig:
@@ -66,7 +70,7 @@ class SnapperConfig:
     @classmethod
     def get(cls, config_name: str):
         return cls(config_name, run_snapper(["get-config"], config_name))
-    
+
     @contextmanager
     def prevent_cleanup(self, snapshots=None, dryrun=False):
         """
@@ -78,7 +82,7 @@ class SnapperConfig:
 
         for s in snapshots:
             s.prevent_cleanup(dryrun=dryrun)
-        
+
         try:
             yield self
         finally:
@@ -90,10 +94,6 @@ class SnapperSnapshot:
     def __init__(self, config: SnapperConfig, info):
         self.config = config
         self.info = info
-        if (info["userdata"] or dict()).get("snapborg_backup") == "true":
-            self._is_backed_up = True
-        else:
-            self._is_backed_up = False
         self._cleanup = info["cleanup"]
 
     def get_date(self):
@@ -102,27 +102,42 @@ class SnapperSnapshot:
     def get_path(self):
         return f"{self.config.get_path()}/.snapshots/{self.get_number()}/snapshot"
 
-    def is_backed_up(self):
-        return self._is_backed_up
-
     def get_number(self):
         return self.info["number"]
 
+    def get_snapborg_id(self):
+        return (self.info["userdata"] or dict()).get("snapborg_id")
+
+    def generate_snapborg_id(self, dryrun=False):
+        snapshot_uuid = self.get_snapborg_id()
+        if snapshot_uuid is None:
+            if self.info["userdata"] is None:
+                self.info["userdata"] = {}
+            snapshot_uuid = uuid.uuid4()
+            self.info["userdata"]["snapborg_id"] = snapshot_uuid
+            run_snapper(
+                [
+                    "modify",
+                    "--userdata",
+                    f"snapborg_id={snapshot_uuid}",
+                    f"{self.get_number()}",
+                ],
+                self.config.name,
+                dryrun=dryrun,
+            )
+        return self.info["userdata"]["snapborg_id"]
+
     def purge_userdata(self, dryrun=False):
         run_snapper(
-            ["modify", "--userdata", "snapborg_backup=", f"{self.get_number()}"],
-            self.config.name, dryrun=dryrun)
-
-    def set_backed_up(self, dryrun=False):
-        run_snapper(["modify", "--userdata", "snapborg_backup=true",
-                     f"{self.get_number()}"], self.config.name, dryrun=dryrun)
-        self._is_backed_up = True
+            ["modify", "--userdata", "snapborg_id=", f"{self.get_number()}"],
+            self.config.name,
+            dryrun=dryrun,
+        )
 
     def prevent_cleanup(self, dryrun=False):
         """
         Prevents this snapshot from being cleaned up
         """
-
         run_snapper(
             ["modify", "--cleanup-algorithm", "", f"{self.get_number()}"],
             self.config.name, dryrun=dryrun

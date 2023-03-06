@@ -1,9 +1,12 @@
+import json
 import os
 import subprocess
 import sys
 from subprocess import CalledProcessError
 
-from .util import restrict_keys, selective_merge
+from .util import restrict_keys, selective_merge, init_snapborg_logger
+
+LOG = init_snapborg_logger(__name__)
 
 DEFAULT_REPO_CONFIG = {
     "storage": {
@@ -44,9 +47,17 @@ class BorgRepo:
             self.repopath,
         ]
         launch_borg(borg_init_invocation, self.passphrase,
-                    print_output=self.is_interactive, dryrun=dryrun)
+                    log_output=self.is_interactive, dryrun=dryrun)
 
-    def backup(self, backup_name, *paths, exclude_patterns=[], timestamp=None, dryrun=False):
+    def backup(
+        self,
+        backup_name,
+        *paths,
+        exclude_patterns=[],
+        timestamp=None,
+        snapborg_id=None,
+        dryrun=False,
+    ):
 
         borg_create = ["create",
                        "--one-file-system",
@@ -54,6 +65,8 @@ class BorgRepo:
                        "--exclude-caches",
                        "--checkpoint-interval", "600",
                        "--compression", self.compression]
+        if snapborg_id:
+            borg_create += ("--comment", f"snapborg_id={snapborg_id}")
         if timestamp:
             borg_create += ("--timestamp", timestamp.isoformat())
         for e in exclude_patterns:
@@ -68,14 +81,14 @@ class BorgRepo:
         launch_borg(
             borg_invocation,
             self.passphrase,
-            print_output=self.is_interactive,
+            log_output=False,
             dryrun=dryrun
         )
 
     def delete(self, backup_name, dryrun=False):
         borg_delete = ["delete", f"{self.repopath}::{backup_name}"]
         launch_borg(borg_delete, self.passphrase,
-                    print_output=self.is_interactive,
+                    log_output=self.is_interactive,
                     dryrun=dryrun)
 
     def prune(self, override_retention_settings=None, dryrun=False):
@@ -92,9 +105,28 @@ class BorgRepo:
         launch_borg(
             borg_prune_invocation,
             self.passphrase,
-            print_output=self.is_interactive,
+            log_output=self.is_interactive,
             dryrun=dryrun
         )
+
+    def list_backups(self):
+        borg_list = [
+            "list",
+            "--format",
+            "{archive} {id} {name} {start} {time} {comment}",
+            "--json",
+            f"{self.repopath}",
+        ]
+        stdout = (
+            launch_borg(borg_list, self.passphrase, log_output=False, dryrun=False)
+            or "{}"
+        )
+        data = json.loads(stdout)
+        return data.get("archives", [])
+
+    def list_backup_ids(self):
+        backup_list = self.list_backups()
+        return [backup.get("comment", "=").split("=")[1] for backup in backup_list]
 
     def get_retention_config(self):
         return self.retention
@@ -132,13 +164,13 @@ def get_password(password):
             with open(password) as pwfile:
                 password = pwfile.read().strip()
         except FileNotFoundError:
-            print("tried to use password as file, but could not find it")
+            LOG.fatal("tried to use password as file, but could not find it")
             raise
 
     return password
 
 
-def launch_borg(args, password=None, print_output=False, dryrun=False):
+def launch_borg(args, password=None, log_output=False, dryrun=False):
     """
     launch borg and supply the password by environment
 
@@ -147,23 +179,29 @@ def launch_borg(args, password=None, print_output=False, dryrun=False):
 
     cmd = ["borg"] + args
 
-    if print_output:
-        print(f"$ {' '.join(cmd)}")
+    LOG.debug("$ {}".format(' '.join(cmd)))
+    buffer = ""
 
     if not dryrun:
         env = {'BORG_PASSPHRASE': password} if password else {}
         # TODO: parse output from JSON log lines
-        try:
-            if print_output:
-                subprocess.run(cmd, env=env, check=True)
-            else:
-                subprocess.check_output(cmd,
-                                        stderr=subprocess.STDOUT,
-                                        env=env)
-        except CalledProcessError as e:
-            if e.returncode == 1:
+
+        # launch process
+        proc = subprocess.Popen(
+            cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
+        # rather than wait for process to finish, print output in real time
+        while proc.poll() is None:
+            line = proc.stdout.readline().decode().rstrip("\n")
+            if len(line) != 0:
+                buffer += line
+                if log_output:
+                    LOG.info(line)
+        if proc.returncode != 0:
+            if proc.returncode == 1:
                 # warning(s) happened, don't raise
-                if not print_output:
-                    print(f"Borg command execution gave warnings:\n{e.output.decode()}")
+                if log_output:
+                    LOG.info(f"Borg command execution gave warnings:\n{buffer}")
             else:
-                raise
+                raise CalledProcessError(cmd=cmd, returncode=proc.returncode)
+    return buffer

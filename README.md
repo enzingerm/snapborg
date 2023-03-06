@@ -56,6 +56,7 @@ General options:
   --dryrun          Don't actually do anything
   --snapper-config  Only operate on a single snapper config
                     given by its name
+  -v                increase verbosity, can be repeated twice
 
 Commands:
   init          Initialize (create) the configured borg repositories
