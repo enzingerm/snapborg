@@ -219,8 +219,8 @@ def backup_candidate(snapper_config, borg_repo, candidate, recreate,
         if recreate:
             borg_repo.delete(backup_name, dryrun=dryrun)
             candidate.purge_userdata(dryrun=dryrun)
-        borg_repo.backup(backup_name, path_to_backup, timestamp=candidate.get_date(),
-                         exclude_patterns=exclude_patterns, dryrun=dryrun)
+        borg_repo.backup(backup_name, '.', timestamp=candidate.get_date(),
+                         exclude_patterns=exclude_patterns, dryrun=dryrun, cwd=path_to_backup)
         candidate.set_backed_up(dryrun=dryrun)
         return True
     except subprocess.CalledProcessError as e:
