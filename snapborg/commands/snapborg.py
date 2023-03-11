@@ -47,8 +47,32 @@ def main():
                      help="The name of a snapper config to operate on")
     subp = cli.add_subparsers(dest="mode", required=True)
 
-    subp.add_parser("prune", help="Prune the borg archives using the retention settings from the "
-                    "snapborg config file")
+    prunecli = subp.add_parser(
+        "prune",
+        help="Prune the borg archives using the retention settings from the "
+        "snapborg config file",
+    )
+    prunecli.add_argument(
+        "--ignore-nameprefix-warning-this-is-permanent",
+        dest="ignore_nameprefix",
+        action="store_true",
+        help=(
+            "Normally, the prune algorithm would only operate on backups whose name starts with "
+            "`snapborg_retentionpolicy_` prefix. This flag disables the restriction, and the pruning "
+            "is run according to the snapborg retention policy on all backups regardless of their name. "
+            "THIS MEANS THAT ALL BACKUPS IN YOUR BORG ARCHIVE ARE SUSCEPTIBLE TO BEING PRUNED. "
+            "Use with caution."
+        ),
+    )
+    prunecli.add_argument(
+        "--noconfirm",
+        action="store_true",
+        help=(
+            "when using the `--ignore-nameprefix-warning-this-is-permanent` flag, snapborg will prompt you "
+            "for confirmation. This flag disables the confirmation prompt."
+        ),
+    )
+
     subp.add_parser("list", help="List all snapper snapshots including their creation date and "
                     "whether they have already been backed up by snapborg")
     backupcli = subp.add_parser(
@@ -73,7 +97,13 @@ def main():
         init(cfg, snapper_configs=configs, dryrun=args.dryrun)
 
     elif args.mode == "prune":
-        prune(cfg, snapper_configs=configs, dryrun=args.dryrun)
+        prune(
+            cfg,
+            snapper_configs=configs,
+            ignore_nameprefix=args.ignore_nameprefix,
+            confirm=not args.noconfirm,
+            dryrun=args.dryrun,
+        )
 
     elif args.mode == "backup":
         backup(cfg, snapper_configs=configs, recreate=args.recreate,
@@ -214,7 +244,14 @@ def backup_candidate(snapper_config, borg_repo, candidate, recreate,
     print(f"Backing up snapshot number {candidate.get_number()} "
           f"from {candidate.get_date().isoformat()}...")
     path_to_backup = candidate.get_path()
-    backup_name = f"{snapper_config.name}-{candidate.get_number()}-{candidate.get_date().isoformat()}"
+    backup_name = f"{snapper_config.name}_{candidate.get_number()}_{candidate.get_date().isoformat()}"
+
+    # If there's a cleanup policy associated with the snapshot, then the snapshot was automatically made by snapper.
+    # If not, the snapshot was probably manual. If the snapshot was manually taken, we probably want to let the user
+    # manually delete it from the borg archive.
+    cleanup_policy = candidate.get_cleanup_policy()
+    if cleanup_policy is not None:
+        backup_name = f"snapborg_retentionpolicy_{backup_name}"
     try:
         if recreate:
             borg_repo.delete(backup_name, dryrun=dryrun)
@@ -228,9 +265,11 @@ def backup_candidate(snapper_config, borg_repo, candidate, recreate,
         return False
 
 
-def prune(cfg, snapper_configs, dryrun):
+def prune(cfg, snapper_configs, dryrun, ignore_nameprefix=False, confirm=True):
     for config in snapper_configs:
-        BorgRepo.create_from_config(config).prune(dryrun=dryrun)
+        BorgRepo.create_from_config(config).prune(
+            ignore_nameprefix=ignore_nameprefix, confirm=confirm, dryrun=dryrun
+        )
 
 
 def init(cfg, snapper_configs, dryrun):

@@ -66,7 +66,7 @@ class SnapperConfig:
     @classmethod
     def get(cls, config_name: str):
         return cls(config_name, run_snapper(["get-config"], config_name))
-    
+
     @contextmanager
     def prevent_cleanup(self, snapshots=None, dryrun=False):
         """
@@ -78,7 +78,7 @@ class SnapperConfig:
 
         for s in snapshots:
             s.prevent_cleanup(dryrun=dryrun)
-        
+
         try:
             yield self
         finally:
@@ -107,6 +107,12 @@ class SnapperSnapshot:
 
     def get_number(self):
         return self.info["number"]
+
+    def get_cleanup_policy(self):
+        if self._cleanup == "":
+            return None
+        else:
+            return self._cleanup
 
     def purge_userdata(self, dryrun=False):
         run_snapper(

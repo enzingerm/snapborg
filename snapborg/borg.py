@@ -22,13 +22,21 @@ DEFAULT_REPO_CONFIG = {
 
 
 class BorgRepo:
-    def __init__(self, repopath: str, compression: str, retention, encryption="none",
-                 passphrase=None):
+    def __init__(
+        self,
+        repopath: str,
+        compression: str,
+        retention,
+        encryption="none",
+        passphrase=None,
+        snapper_config_name: str = None,
+    ):
         self.repopath = repopath
         self.compression = compression
         self.retention = retention
         self.encryption = encryption
         self.passphrase = passphrase
+        self.snapper_config_name = snapper_config_name
         self.is_interactive = os.isatty(sys.stdout.fileno())
 
     def init(self, dryrun=False):
@@ -79,9 +87,25 @@ class BorgRepo:
                     print_output=self.is_interactive,
                     dryrun=dryrun)
 
-    def prune(self, override_retention_settings=None, dryrun=False):
+    def prune(
+        self,
+        override_retention_settings=None,
+        ignore_nameprefix=False,
+        confirm=True,
+        dryrun=False,
+    ):
         override_retention_settings = override_retention_settings or {}
-        borg_prune_invocation = ["prune"]
+        borg_prune_invocation = ["prune", "-P", "snapborg_retentionpolicy_"]
+        if ignore_nameprefix:
+            if confirm:
+                response = input(
+                    f"For config {self.snapper_config_name or self.repopath}: Are you SURE you want to apply pruning to all backups? "
+                    "Permanent loss of data can ensue. Type YES to continue: "
+                )
+                if response != "YES":
+                    raise Exception("Aborting!")
+            borg_prune_invocation = ["prune"]
+
         retention_settings = selective_merge(
             override_retention_settings, self.retention, restrict_keys=True)
         for name, value in retention_settings.items():
@@ -118,8 +142,14 @@ class BorgRepo:
             password = get_password(config["storage"]["encryption_passphrase"])
         else:
             raise Exception("Invalid or unsupported encryption mode given!")
-        return cls(borgrepo, compression, retention=retention, encryption=encryption,
-                   passphrase=password)
+        return cls(
+            borgrepo,
+            compression,
+            retention=retention,
+            encryption=encryption,
+            passphrase=password,
+            snapper_config_name=config["name"],
+        )
 
 
 def get_password(password):
