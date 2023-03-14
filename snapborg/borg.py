@@ -81,7 +81,7 @@ class BorgRepo:
 
     def prune(self, override_retention_settings=None, dryrun=False):
         override_retention_settings = override_retention_settings or {}
-        borg_prune_invocation = ["prune"]
+        borg_prune_invocation = ["prune", "--list"]
         retention_settings = selective_merge(
             override_retention_settings, self.retention, restrict_keys=True)
         for name, value in retention_settings.items():
