@@ -36,6 +36,17 @@ setup(
                 "etc/snapborg.yaml",
             ],
         ),
+        (
+            "/etc/systemd/system/",
+            [
+                "etc/systemd/system/snapborg-backup-all.service",
+                "etc/systemd/system/snapborg-backup-all.timer",
+                "etc/systemd/system/snapborg-backup@.service",
+                "etc/systemd/system/snapborg-backup@.timer",
+                "etc/systemd/system/snapborg-prune.service",
+                "etc/systemd/system/snapborg-prune.timer",
+            ],
+        ),
     ],
     platforms=[
         "Linux",
