@@ -4,3 +4,5 @@ After=nss-user-lookup.target snapper-boot.service snapper-timeline.service snapp
 
 [Service]
 ExecStart=/usr/bin/snapborg backup
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle

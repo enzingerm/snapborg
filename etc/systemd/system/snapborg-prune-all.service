@@ -4,3 +4,5 @@ After=snapborg-backup@.service snapborg-backup-all.service nss-user-lookup.targe
 
 [Service]
 ExecStart=/usr/bin/snapborg prune
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
