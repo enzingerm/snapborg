@@ -1,8 +1,0 @@
-[Unit]
-Description=Scheduled runs of snapborg prune
-
-[Timer]
-OnCalendar=hourly
-
-[Install]
-WantedBy=timers.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily runs of snapborg backup for the '%I' snapper config
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+Unit=snapborg-backup@%i.service
+
+[Install]
+WantedBy=timers.target
