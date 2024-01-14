@@ -48,6 +48,8 @@ configs:
 `<time period>` must be given as days (e.g. `"3d"`) or as hours (e.g. `"6h"`) and specifies the maximum age of the last backup successfully transferred to the borg repo. When `snapborg` cannot transfer a recent snapshot to the repository, it will only fail if the last snapshot which was transferred during an earlier executions older than the given time period.
 
 ## Usage
+
+### Command line
 ```
 # snapborg [general options] <command> [command options]
 
@@ -75,6 +77,14 @@ Commands:
 
 
 ```
+
+### Systemd units
+
+You will find relevant systemd units in `etc/systemd/system/`.
+
+  * To enable regular backups for all configs, run `systemctl enable --now snapborg-backup-all.timer`
+  * To enable regular backups for a specific config, run `systemctl enable --now snapborg-backup@configname.timer` for each config (replace `configname` with your config's name)
+  * Pruning works the same way as backing up; just replace `backup` with `prune` in the above commands.
 
 ## Dependencies
 - snapper >= 0.8.6
