@@ -82,9 +82,10 @@ Commands:
 
 You will find relevant systemd units in `etc/systemd/system/`.
 
-  * To enable regular backups for all configs, run `systemctl enable --now snapborg-backup-all.timer`
-  * To enable regular backups for a specific config, run `systemctl enable --now snapborg-backup@configname.timer` for each config (replace `configname` with your config's name)
+  * To enable regular backups for all configs, run `systemctl enable --now snapborg-backup-all-hourly.timer`
+  * To enable regular backups for a specific config, run `systemctl enable --now snapborg-backup-hourly@configname.timer` for each config (replace `configname` with your config's name)
   * Pruning works the same way as backing up; just replace `backup` with `prune` in the above commands.
+  * You can also run backups daily; just use `daily` instead of `hourly` above.
 
 ## Dependencies
 - snapper >= 0.8.6
