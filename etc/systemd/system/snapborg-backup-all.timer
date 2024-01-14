@@ -1,0 +1,8 @@
+[Unit]
+Description=Scheduled runs of snapborg backup for all configs
+
+[Timer]
+OnCalendar=hourly
+
+[Install]
+WantedBy=timers.target
