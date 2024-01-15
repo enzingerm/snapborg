@@ -4,5 +4,6 @@ After=snapborg-backup@.service snapborg-backup-all.service nss-user-lookup.targe
 
 [Service]
 ExecStart=/usr/bin/snapborg --snapper-config %I prune
+Environment="PYTHONUNBUFFERED=1"
 CPUSchedulingPolicy=idle
 IOSchedulingClass=idle
