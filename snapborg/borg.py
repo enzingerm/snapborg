@@ -114,7 +114,7 @@ class BorgRepo:
         password = None
         if encryption == "none":
             pass
-        elif encryption == "repokey":
+        elif encryption == "repokey" or encryption == "repokey-blake2":
             password = get_password(config["storage"]["encryption_passphrase"])
         else:
             raise Exception("Invalid or unsupported encryption mode given!")
