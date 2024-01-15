@@ -1,5 +1,5 @@
 [Unit]
-Description=Run snapborg backup for the %I snapper config
+Description=Run snapborg backup for the '%I' snapper config
 After=nss-user-lookup.target snapper-boot.service snapper-timeline.service snapper-cleanup.service
 
 [Service]
