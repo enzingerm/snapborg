@@ -65,21 +65,24 @@ class BorgRepo:
             borg_create.append("--progress")
 
         repospec = f"{self.repopath}::{backup_name}"
+        args = borg_create + [repospec, '.']
 
         if mount_path is not None:
             with bind_mount(mount_path, path):
                 launch_borg(
-                    borg_create + [repospec, mount_path],
+                    args,
                     self.passphrase,
                     print_output=self.is_interactive,
                     dryrun=dryrun,
+                    cwd=mount_path,
                 )
         else:
             launch_borg(
-                borg_create + [repospec, path],
+                args,
                 self.passphrase,
                 print_output=self.is_interactive,
                 dryrun=dryrun,
+                cwd=path,
             )
 
     def delete(self, backup_name, dryrun=False):
