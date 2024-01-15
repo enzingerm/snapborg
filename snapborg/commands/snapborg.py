@@ -190,7 +190,7 @@ def backup_config(config, recreate, dryrun, bind_mount):
             **retention_config) if(not snapshot.is_backed_up() or recreate)
     ]
 
-    mount_path = f'/var/run/snapborg/{name}' if bind_mount else None
+    mount_path = f'/run/snapborg/{name}' if bind_mount else None
 
     with snapper_config.prevent_cleanup(snapshots=candidates, dryrun=dryrun):
         results = [ backup_candidate(snapper_config, repo, candidate, recreate,
