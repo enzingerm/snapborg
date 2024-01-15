@@ -1,6 +1,8 @@
 import os
+import os.path
 import subprocess
 import sys
+from contextlib import contextmanager
 from subprocess import CalledProcessError
 
 from .util import restrict_keys, selective_merge
@@ -46,7 +48,7 @@ class BorgRepo:
         launch_borg(borg_init_invocation, self.passphrase,
                     print_output=self.is_interactive, dryrun=dryrun)
 
-    def backup(self, backup_name, *paths, exclude_patterns=[], timestamp=None, dryrun=False, cwd=None):
+    def backup(self, backup_name, path, exclude_patterns=[], timestamp=None, dryrun=False, mount_path=None):
 
         borg_create = ["create",
                        "--one-file-system",
@@ -63,15 +65,25 @@ class BorgRepo:
             borg_create.append("--progress")
 
         repospec = f"{self.repopath}::{backup_name}"
-        borg_invocation = borg_create + [repospec, *paths]
+        args = borg_create + [repospec, '.']
 
-        launch_borg(
-            borg_invocation,
-            self.passphrase,
-            print_output=self.is_interactive,
-            dryrun=dryrun,
-            cwd=cwd
-        )
+        if mount_path is not None:
+            with bind_mount(mount_path, path):
+                launch_borg(
+                    args,
+                    self.passphrase,
+                    print_output=self.is_interactive,
+                    dryrun=dryrun,
+                    cwd=mount_path,
+                )
+        else:
+            launch_borg(
+                args,
+                self.passphrase,
+                print_output=self.is_interactive,
+                dryrun=dryrun,
+                cwd=path,
+            )
 
     def delete(self, backup_name, dryrun=False):
         borg_delete = ["delete", f"{self.repopath}::{backup_name}"]
@@ -169,3 +181,22 @@ def launch_borg(args, password=None, print_output=False, dryrun=False, cwd=None)
                     print(f"Borg command execution gave warnings:\n{e.output.decode()}")
             else:
                 raise
+
+
+@contextmanager
+def bind_mount(mount_path, target_path):
+    """
+    Creates a bind mount mounted at mount_path pointing to target_path.  Usually requires root privileges.
+    """
+
+    os.makedirs(mount_path, exist_ok=True)
+
+    # If we didn't properly clean this up in previous invocations
+    while os.path.ismount(mount_path):
+        subprocess.check_call(['umount', mount_path])
+
+    subprocess.check_call(['mount', '--bind', target_path, mount_path])
+    try:
+        yield
+    finally:
+        subprocess.check_call(['umount', mount_path])
