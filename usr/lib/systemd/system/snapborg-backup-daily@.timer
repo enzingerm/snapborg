@@ -1,5 +1,5 @@
 [Unit]
-Description=Daily runs of snapborg backup for the '%I' snapper config
+Description=Daily runs of snapborg backup (and prune) for the '%I' snapper config
 
 [Timer]
 OnCalendar=daily

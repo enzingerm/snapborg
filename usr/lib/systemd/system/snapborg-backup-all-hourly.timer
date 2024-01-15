@@ -1,5 +1,5 @@
 [Unit]
-Description=Hourly runs of snapborg backup for all snapper configs
+Description=Hourly runs of snapborg backup (and prune) for all snapper configs
 
 [Timer]
 OnCalendar=hourly
