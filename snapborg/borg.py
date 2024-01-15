@@ -189,7 +189,10 @@ def bind_mount(mount_path, target_path):
     Creates a bind mount mounted at mount_path pointing to target_path.  Usually requires root privileges.
     """
 
-    os.makedirs(mount_path, exist_ok=True)
+    try:
+        os.makedirs(mount_path, exist_ok=True)
+    except PermissionError as exc:
+        raise Exception("Failed to create bind mount dir; most likely you should re-run this command as root") from exc
 
     # If we didn't properly clean this up in previous invocations
     while os.path.ismount(mount_path):
