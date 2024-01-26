@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly runs of snapborg backup (and prune) for all snapper configs
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=snapborg-backup-all.service
+
+[Install]
+WantedBy=timers.target

@@ -36,6 +36,17 @@ setup(
                 "etc/snapborg.yaml",
             ],
         ),
+        (
+            "/usr/lib/systemd/system/",
+            [
+                "usr/lib/systemd/system/snapborg-backup-all.service",
+                "usr/lib/systemd/system/snapborg-backup-all-daily.timer",
+                "usr/lib/systemd/system/snapborg-backup-all-hourly.timer",
+                "usr/lib/systemd/system/snapborg-backup@.service",
+                "usr/lib/systemd/system/snapborg-backup-daily@.timer",
+                "usr/lib/systemd/system/snapborg-backup-hourly@.timer",
+            ],
+        ),
     ],
     platforms=[
         "Linux",

@@ -1,0 +1,9 @@
+[Unit]
+Description=Run snapborg backup (and prune) for the '%I' snapper config
+After=nss-user-lookup.target snapper-boot.service snapper-timeline.service snapper-cleanup.service
+
+[Service]
+ExecStart=/usr/bin/snapborg --snapper-config %I --bind-mount backup
+Environment="PYTHONUNBUFFERED=1"
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
