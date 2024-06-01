@@ -147,16 +147,18 @@ def backup(cfg, snapper_configs, recreate, prune_old_backups, dryrun, bind_mount
         except Exception as e:
             status_map[config["name"]] = e
     print("\nBackup results:")
-    has_error = False
+    errors = []
     for config_name, status in status_map.items():
         if status is True:
             print(f"OK     {config_name}")
         else:
-            has_error = True
+            errors.append(status)
             print(f"FAILED {config_name}: {status}")
 
-    if has_error:
-        raise Exception("Snapborg failed!")
+    if len(errors) == 1:
+        raise Exception("Snapborg failed!") from errors[0]
+    elif len(errors) > 1:
+        raise Exception("Snapborg failed!") from ExceptionGroup("Multiple configs failed", errors)
     elif prune_old_backups:
         prune(cfg, snapper_configs, dryrun)
 
