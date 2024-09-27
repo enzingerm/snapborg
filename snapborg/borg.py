@@ -24,13 +24,14 @@ DEFAULT_REPO_CONFIG = {
 
 
 class BorgRepo:
-    def __init__(self, repopath: str, compression: str, retention, encryption="none",
+    def __init__(self, snapper_config: str, repopath: str, compression: str, retention, encryption="none",
                  passphrase=None):
         self.repopath = repopath
         self.compression = compression
         self.retention = retention
         self.encryption = encryption
         self.passphrase = passphrase
+        self.snapper_config = snapper_config
         self.is_interactive = os.isatty(sys.stdout.fileno())
 
     def init(self, dryrun=False):
@@ -100,6 +101,7 @@ class BorgRepo:
             borg_prune_invocation += (f"--{name.replace('_', '-')}",
                                       str(value))
 
+        borg_prune_invocation += ("--glob-archives", f"'{self.snapper_config}-*'")
         borg_prune_invocation.append(self.repopath)
 
         launch_borg(
@@ -116,7 +118,10 @@ class BorgRepo:
     def create_from_config(cls, config):
         if not config["repo"]:
             raise Exception("Target repository not given!")
+        if not config["name"]:
+            raise Exception("Snapper config name not given!")
         borgrepo = config["repo"]
+        snapper_config = config["name"]
         # inherit default settings
         config = selective_merge(config, DEFAULT_REPO_CONFIG)
         encryption = config["storage"]["encryption"]
@@ -130,7 +135,7 @@ class BorgRepo:
             password = get_password(config["storage"]["encryption_passphrase"])
         else:
             raise Exception("Invalid or unsupported encryption mode given!")
-        return cls(borgrepo, compression, retention=retention, encryption=encryption,
+        return cls(snapper_config, borgrepo, compression, retention=retention, encryption=encryption,
                    passphrase=password)
 
 
