@@ -1,6 +1,6 @@
 import json
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from contextlib import contextmanager
 
 from packaging import version
@@ -98,6 +98,12 @@ class SnapperSnapshot:
 
     def get_date(self):
         return datetime.fromisoformat(self.info["date"])
+
+    def get_date_utc(self):
+        local_time_naive = datetime.fromisoformat(self.info["date"])
+        local_time_aware = local_time_naive.astimezone()
+        utc_time = local_time_aware.astimezone(timezone.utc)
+        return utc_time
 
     def get_path(self):
         return f"{self.config.get_path()}/.snapshots/{self.get_number()}/snapshot"

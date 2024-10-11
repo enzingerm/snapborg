@@ -228,7 +228,7 @@ def backup_candidate(snapper_config, borg_repo, candidate, recreate,
         if recreate:
             borg_repo.delete(backup_name, dryrun=dryrun)
             candidate.purge_userdata(dryrun=dryrun)
-        borg_repo.backup(backup_name, path_to_backup, timestamp=candidate.get_date(),
+        borg_repo.backup(backup_name, path_to_backup, timestamp=candidate.get_date_utc(),
                          exclude_patterns=exclude_patterns, dryrun=dryrun, mount_path=mount_path)
         candidate.set_backed_up(dryrun=dryrun)
         return True
