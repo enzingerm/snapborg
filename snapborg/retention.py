@@ -14,7 +14,8 @@ def get_retained_snapshots(snapshots, date_key, keep_last=1, keep_minutely=0, ke
     start_of_today = datetime.combine(today, time.min)
     retained = set()
     with_date = sorted([(date_key(snapshot), snapshot)
-                        for snapshot in snapshots], key=lambda entry: entry[0])
+                        for snapshot in snapshots
+                        if date_key(snapshot) <= now], key=lambda entry: entry[0])
     if keep_last > 0:
         retained.update(it[1] for it in with_date[-keep_last:])
     # Transform each retainment setting (minutely, hourly, ...) into a tuple of the following form:
@@ -41,7 +42,7 @@ def get_retained_snapshots(snapshots, date_key, keep_last=1, keep_minutely=0, ke
         while nr_keep > 0 and len(snapshots_remaining) > 0:
             start, end = interval
             snapshots_to_consider, snapshots_remaining = split(
-                snapshots_remaining, lambda x: x[0] >= start and x[0] < end)
+                snapshots_remaining, lambda x: start <= x[0] < end)
             # when pruning, borg keeps the last snapshot of an interval. By selecting the last
             # snapshot here, we ensure we aren't backing up snapshots just to prune them right away
             # https://borgbackup.readthedocs.io/en/stable/usage/prune.html#description
