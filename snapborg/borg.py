@@ -101,7 +101,7 @@ class BorgRepo:
             borg_prune_invocation += (f"--{name.replace('_', '-')}",
                                       str(value))
 
-        borg_prune_invocation += ("--glob-archives", f"'{self.snapper_config}-*'")
+        borg_prune_invocation += ("--glob-archives", f"{self.snapper_config}-*")
         borg_prune_invocation.append(self.repopath)
 
         launch_borg(
