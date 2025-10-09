@@ -169,7 +169,12 @@ def launch_borg(args, password=None, print_output=False, dryrun=False, cwd=None)
         print(f"$ {' '.join(cmd)}")
 
     if not dryrun:
-        env = {'BORG_PASSPHRASE': password} if password else {}
+        # Start with a copy of the current environment
+        env = os.environ.copy()
+
+        if password:
+            env['BORG_PASSPHRASE'] = password
+
         # TODO: parse output from JSON log lines
         try:
             if print_output:
