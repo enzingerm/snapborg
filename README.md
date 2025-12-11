@@ -54,26 +54,30 @@ configs:
 # snapborg [general options] <command> [command options]
 
 General options:
-  --cfg             Snapborg config file (defaults to /etc/snapborg.yaml)
-  --dryrun          Don't actually do anything
-  --snapper-config  Only operate on a single snapper config
-                    given by its name
+  --cfg               Snapborg config file (defaults to /etc/snapborg.yaml)
+  --dryrun            Don't actually do anything
+  --bind-mount        OBSOLETE/has no effect: see --absolute-paths parameter of the `backup` command
+  --snapper-config    Only operate on a single snapper config
+                      given by its name
 
 Commands:
-  init          Initialize (create) the configured borg repositories
+  init                Initialize (create) the configured borg repositories
 
-  list          List all snapper snapshots and show whether
-                they are already backed up
+  list                List all snapper snapshots and show whether
+                      they are already backed up
 
-  prune         Prune old borg backup archives
+  prune               Prune old borg backup archives
 
-  backup        Backup snapper snapshots
-    --recreate  Delete possibly existing borg archives and recreate them from
-                scratch
-    --no-prune  Ignore retention policy and don't prune old backups
+  backup              Backup snapper snapshots
+    --absolute-paths  Archive files in the btrfs subvolume with their absolute paths. Requires
+                      running as root (uses bind-mount).If not given, files are stored with their
+                      paths relative to the subvolume root.
+    --recreate        Delete possibly existing borg archives and recreate them from
+                      scratch
+    --no-prune        Ignore retention policy and don't prune old backups
 
-  clean-snapper Delete snapborg metadata stored alongside
-                snapper snapshots
+  clean-snapper       Delete snapborg metadata stored alongside
+                      snapper snapshots
 
 
 ```
@@ -94,3 +98,19 @@ You will find relevant systemd units in `usr/lib/systemd/system/`.
 - *Python*:
   - packaging
   - pyyaml
+
+
+# Changelog
+
+
+
+## 0.1.1
+  - Remove `--bind-mount` parameter which was needed to strip the snapper snapshot prefix 
+    (`<subvol>/.snapshots/<number>/snapshot`) from the archive path. This is now the default
+    behaviour and uses the borg "slashdot hack" to specify a recursion root which doesnt need
+    special privileges.
+  - Introduce `snapborg backup --absolute-paths` parameter which can be used so that files in
+    snapper configs mounted somewhere down the filesystem tree can be backed up with their full
+    absolute paths. `/home/user/testdir/testfile` keeps its absolute path in the archive even if 
+    subvolume `@home` is mounted at `/home/user`. Per default it would be stored as `testdir/testfile`
+    (relative to the subvolume root). **Uses bind mounts and requires special privileges**

@@ -12,6 +12,7 @@ config usually in /etc/snapborg.yaml
 
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -44,8 +45,7 @@ def main():
     cli.add_argument("--cfg", default="/etc/snapborg.yaml", help="Snapborg config file location")
     cli.add_argument("--dryrun", action="store_true", help="Don't actually execute commands")
     cli.add_argument("--bind-mount", action="store_true",
-                     help="Bind mount snapshots so that file paths are consistent, which means caching works much "
-                          "better. Requires running as root.")
+                     help="OBSOLETE/has no effect: see --absolute-paths parameter of the `backup` command")
     cli.add_argument("--snapper-config", default=None, dest="snapper_config",
                      help="The name of a snapper config to operate on")
     subp = cli.add_subparsers(dest="mode", required=True)
@@ -57,6 +57,9 @@ def main():
     backupcli = subp.add_parser(
         "backup", help="Backup all the snapper snapshots which are not already "
         "backed up")
+    backupcli.add_argument("--absolute-paths", action="store_true", help="Archive files in the btrfs"
+                     " subvolume with their absolute paths. Requires running as root (uses bind-mount)."
+                     "If not given, files are stored with their paths relative to the subvolume root.")
     backupcli.add_argument(
         "--recreate", action="store_true", dest="recreate",
         help="Delete possibly existing borg archives and recreate them from scratch")
@@ -81,7 +84,7 @@ def main():
     elif args.mode == "backup":
         backup(cfg, snapper_configs=configs, recreate=args.recreate,
                prune_old_backups=not args.no_prune, dryrun=args.dryrun,
-               bind_mount=args.bind_mount)
+               absolute_paths=args.absolute_paths)
 
     elif args.mode == "list":
         list_snapshots(cfg, configs=configs)
@@ -135,14 +138,14 @@ def get_configs(cfg, config_arg=None):
 
 
 
-def backup(cfg, snapper_configs, recreate, prune_old_backups, dryrun, bind_mount):
+def backup(cfg, snapper_configs, recreate, prune_old_backups, dryrun, absolute_paths):
     """
     Backup all given snapper configs, optionally recreating the archives
     """
     status_map = {}
     for config in snapper_configs:
         try:
-            backup_config(config, recreate, dryrun, bind_mount)
+            backup_config(config, recreate, dryrun, absolute_paths)
             status_map[config["name"]] = True
         except Exception as e:
             status_map[config["name"]] = e
@@ -163,7 +166,7 @@ def backup(cfg, snapper_configs, recreate, prune_old_backups, dryrun, bind_mount
         prune(cfg, snapper_configs, dryrun)
 
 
-def backup_config(config, recreate, dryrun, bind_mount):
+def backup_config(config, recreate, dryrun, absolute_paths):
     """
     Backup a single snapper config
     """
@@ -191,8 +194,14 @@ def backup_config(config, recreate, dryrun, bind_mount):
             snapshots, lambda s: s.get_date(),
             **retention_config) if(not snapshot.is_backed_up() or recreate)
     ]
-
-    mount_path = f'/run/snapborg/{name}' if bind_mount else None
+    
+    mount_path = None
+    if absolute_paths:
+        # the dot here leads to borg stripping the path prefix from the archived paths (sets recursion root)
+        # see borg "slashdot hack"
+        mount_path = os.path.join('/run/snapborg', name, '.')
+        if not snapper_config.is_root:
+            mount_path = os.path.join(mount_path, os.path.relpath(snapper_config.get_path(), '/'))
 
     with snapper_config.prevent_cleanup(snapshots=candidates, dryrun=dryrun):
         results = [ backup_candidate(snapper_config, repo, candidate, recreate,

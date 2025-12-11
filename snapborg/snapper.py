@@ -53,6 +53,10 @@ class SnapperConfig:
     def get_path(self):
         return self.settings["SUBVOLUME"]
 
+    @property
+    def is_root(self):
+        return self.get_path() == '/'
+
     def get_snapshots(self):
         if not self._snapshots:
             self._snapshots = [

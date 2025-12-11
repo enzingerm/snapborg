@@ -66,20 +66,19 @@ class BorgRepo:
             borg_create.append("--progress")
 
         repospec = f"{self.repopath}::{backup_name}"
-        args = borg_create + [repospec, '.']
+        args = borg_create + [repospec]
 
         if mount_path is not None:
             with bind_mount(mount_path, path):
                 launch_borg(
-                    args,
+                    args + [mount_path],
                     self.passphrase,
                     print_output=self.is_interactive,
                     dryrun=dryrun,
-                    cwd=mount_path,
                 )
         else:
             launch_borg(
-                args,
+                args + ['.'],
                 self.passphrase,
                 print_output=self.is_interactive,
                 dryrun=dryrun,
