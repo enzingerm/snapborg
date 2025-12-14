@@ -116,28 +116,11 @@ class BorgRepo:
         if encryption == "none":
             pass
         elif encryption == "repokey" or encryption == "repokey-blake2":
-            password = get_password(config["storage"]["encryption_passphrase"])
+            password = config["storage"]["encryption_passphrase"]
         else:
             raise Exception("Invalid or unsupported encryption mode given!")
         return cls(snapper_config, borgrepo, compression, retention=retention, encryption=encryption,
                    passphrase=password)
-
-
-def get_password(password):
-    """
-    Try to read the password from a file, if it looks like a filename.
-    Taken from the sftbackup project
-    """
-    if any(password.startswith(char) for char in ('~', '/', '.')):
-        try:
-            password = os.path.expanduser(password)
-            with open(password) as pwfile:
-                password = pwfile.read().strip()
-        except FileNotFoundError:
-            print("tried to use password as file, but could not find it")
-            raise
-
-    return password
 
 
 def launch_borg(args, password=None, print_output=False, dryrun=False, cwd=None):
