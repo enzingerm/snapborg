@@ -36,7 +36,7 @@ configs:
 In some scenarios, the backup target repository is not permanently reachable, e. g. when an 
 external HDD is used which is only plugged in from time to time. In these cases, normally
 an execution of `snapborg` would fail. However `snapborg` features a fault tolerant mode, which
-can be enabled by specifying the following in `snapborg.cfg`:
+can be enabled by specifying the following in `snapborg.yaml`:
 ```yaml
 configs:
   - name: snapper_config_1
@@ -61,8 +61,6 @@ General options:
                       given by its name
 
 Commands:
-  init                Initialize (create) the configured borg repositories
-
   list                List all snapper snapshots and show whether
                       they are already backed up
 

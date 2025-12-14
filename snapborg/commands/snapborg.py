@@ -65,7 +65,6 @@ def main():
         help="Delete possibly existing borg archives and recreate them from scratch")
     backupcli.add_argument(
         "--no-prune", action="store_true", help="Ignore retention policy and don't prune old backups")
-    subp.add_parser("init")
     subp.add_parser("clean-snapper", help="Clean snapper snapshots from all snapborg specific "
                     "user data")
 
@@ -75,10 +74,7 @@ def main():
         cfg = selective_merge(yaml.safe_load(stream), DEFAULT_CONFIG)
     configs = get_configs(cfg, args.snapper_config)
 
-    if args.mode == "init":
-        init(cfg, snapper_configs=configs, dryrun=args.dryrun)
-
-    elif args.mode == "prune":
+    if args.mode == "prune":
         prune(cfg, snapper_configs=configs, dryrun=args.dryrun)
 
     elif args.mode == "backup":
@@ -251,14 +247,6 @@ def backup_candidate(snapper_config, borg_repo, candidate, recreate,
 def prune(cfg, snapper_configs, dryrun):
     for config in snapper_configs:
         BorgRepo.create_from_config(config).prune(dryrun=dryrun)
-
-
-def init(cfg, snapper_configs, dryrun):
-    """
-    Create new borg archives in none or in repokey mode
-    """
-    for config in snapper_configs:
-        BorgRepo.create_from_config(config).init(dryrun=dryrun)
 
 
 def clean_snapper(cfg, snapper_configs, dryrun):

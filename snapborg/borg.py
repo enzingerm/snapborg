@@ -34,21 +34,6 @@ class BorgRepo:
         self.snapper_config = snapper_config
         self.is_interactive = os.isatty(sys.stdout.fileno())
 
-    def init(self, dryrun=False):
-        """
-        Initialize the borg repository
-        """
-        # TODO: should we really fail if repo already exists?
-        borg_init_invocation = [
-            "init",
-            "--encryption",
-            self.encryption,
-            "--make-parent-dirs",
-            self.repopath,
-        ]
-        launch_borg(borg_init_invocation, self.passphrase,
-                    print_output=self.is_interactive, dryrun=dryrun)
-
     def backup(self, backup_name, path, exclude_patterns=[], timestamp=None, dryrun=False, mount_path=None):
 
         borg_create = ["create",
