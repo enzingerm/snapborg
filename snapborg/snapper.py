@@ -2,22 +2,31 @@ import json
 import subprocess
 from datetime import datetime, timezone
 from contextlib import contextmanager
+from typing import Set, Optional, Union
 
 from packaging import version
+from .config import LEGACY_REPO_NAME, RepoConfig
+from .exceptions import SnapperExecutionException, SnapperTooOldException
+
+SNAPBORG_BACKUP_KEY_LEGACY = "snapborg_backup"
+SNAPBORG_BACKUP_KEY = "snapborg_backup_repos"
 
 
 def check_snapper():
     """
     Snapper version should be >= 0.8.6 to be able to use machine readable output
     """
-    output = subprocess.check_output(["snapper", "--version"]).decode()
+    try:
+        output = subprocess.check_output(["snapper", "--version"]).decode()
+    except subprocess.CalledProcessError as e:
+        raise SnapperExecutionException from e
     line = [l for l in output.splitlines() if l.startswith("snapper")][0]
     snapper_version = line.split(" ")[1]
     if version.parse(snapper_version) < version.parse("0.8.6"):
-        raise Exception(f"Snapper version {snapper_version} is too old!")
+        raise SnapperTooOldException(f"Snapper version {snapper_version} is too old, must be > 0.8.6!")
 
 
-def run_snapper(args, config: str = None, dryrun=False):
+def run_snapper(args, config: Optional[str] = None, dryrun=False):
     """
     Run a snapper command, optionally for a given config, and return
     the parsed JSON output
@@ -34,10 +43,13 @@ def run_snapper(args, config: str = None, dryrun=False):
         *args
     ]
     if dryrun:
-        print(args_new)
+        print(f"$ {' '.join(args_new)}")
         return None
     else:
-        output = subprocess.check_output(args_new).decode().strip()
+        try:
+            output = subprocess.check_output(args_new).decode().strip()
+        except subprocess.CalledProcessError as e:
+            raise SnapperExecutionException from e
         return json.loads(output) if output != "" else None
 
 
@@ -50,12 +62,13 @@ class SnapperConfig:
     def is_timeline_enabled(self):
         return self.settings["TIMELINE_CREATE"] == "yes"
 
-    def get_path(self):
+    @property
+    def path(self):
         return self.settings["SUBVOLUME"]
 
     @property
     def is_root(self):
-        return self.get_path() == '/'
+        return self.path == '/'
 
     def get_snapshots(self):
         if not self._snapshots:
@@ -66,6 +79,9 @@ class SnapperConfig:
                 if info["number"] != 0
             ]
         return self._snapshots
+    
+    def get_archive_name(self, snapshot: 'SnapperSnapshot') -> str:
+        return f"{self.name}-{snapshot.number}-{snapshot.date.isoformat()}"
 
     @classmethod
     def get(cls, config_name: str):
@@ -93,40 +109,59 @@ class SnapperConfig:
 class SnapperSnapshot:
     def __init__(self, config: SnapperConfig, info):
         self.config = config
+        self._is_backed_up: Set[str] = set()
         self.info = info
-        if (info["userdata"] or dict()).get("snapborg_backup") == "true":
-            self._is_backed_up = True
-        else:
-            self._is_backed_up = False
+        snapborg_backup_legacy = (info["userdata"] or dict()).get(SNAPBORG_BACKUP_KEY_LEGACY)
+        snapborg_backup = (info["userdata"] or dict()).get(SNAPBORG_BACKUP_KEY)
+        if snapborg_backup:
+            for repo in snapborg_backup.lstrip(" [").rstrip(" ]").split(";"):
+                self._is_backed_up.add(repo.strip())
+        elif snapborg_backup_legacy == 'true':
+            self._is_backed_up.add(LEGACY_REPO_NAME)
         self._cleanup = info["cleanup"]
 
-    def get_date(self):
+    @property
+    def date(self):
         return datetime.fromisoformat(self.info["date"])
 
-    def get_date_utc(self):
+    @property
+    def date_utc(self):
         local_time_naive = datetime.fromisoformat(self.info["date"])
         local_time_aware = local_time_naive.astimezone()
         utc_time = local_time_aware.astimezone(timezone.utc)
         return utc_time
 
-    def get_path(self):
-        return f"{self.config.get_path()}/.snapshots/{self.get_number()}/snapshot"
+    @property
+    def path(self):
+        return f"{self.config.path}/.snapshots/{self.number}/snapshot"
 
-    def is_backed_up(self):
-        return self._is_backed_up
+    def is_backed_up(self, repo: Union[str, RepoConfig]) -> bool:
+        repo = repo.name if isinstance(repo, RepoConfig) else repo
+        return repo in self._is_backed_up
 
-    def get_number(self):
+    @property
+    def number(self):
         return self.info["number"]
 
     def purge_userdata(self, dryrun=False):
         run_snapper(
-            ["modify", "--userdata", "snapborg_backup=", f"{self.get_number()}"],
+            ["modify", "--userdata", f"{SNAPBORG_BACKUP_KEY}=,{SNAPBORG_BACKUP_KEY_LEGACY}=", f"{self.number}"],
             self.config.name, dryrun=dryrun)
 
-    def set_backed_up(self, dryrun=False):
-        run_snapper(["modify", "--userdata", "snapborg_backup=true",
-                     f"{self.get_number()}"], self.config.name, dryrun=dryrun)
-        self._is_backed_up = True
+    def set_backup_status(self, repo: Union[str, RepoConfig], status: bool, dryrun=False):
+        repo = repo.name if isinstance(repo, RepoConfig) else repo
+        if status:
+            self._is_backed_up.add(repo)
+        else:
+            self._is_backed_up.discard(repo)
+        userdata = '[' + ';'.join(self._is_backed_up) + ']'
+        legacy_userdata = (
+                f",{SNAPBORG_BACKUP_KEY_LEGACY}=" + 'true' if status else ''
+            ) if repo == LEGACY_REPO_NAME else ""
+
+        run_snapper(["modify", "--userdata", f"{SNAPBORG_BACKUP_KEY}={userdata}{legacy_userdata}",
+                     f"{self.number}"], self.config.name, dryrun=dryrun)
+    
 
     def prevent_cleanup(self, dryrun=False):
         """
@@ -134,7 +169,7 @@ class SnapperSnapshot:
         """
 
         run_snapper(
-            ["modify", "--cleanup-algorithm", "", f"{self.get_number()}"],
+            ["modify", "--cleanup-algorithm", "", f"{self.number}"],
             self.config.name, dryrun=dryrun
         )
 
@@ -143,6 +178,6 @@ class SnapperSnapshot:
         Restores the cleanup algorithm for this snapshot
         """
         run_snapper(
-            ["modify", "--cleanup-algorithm", self._cleanup, f"{self.get_number()}"],
+            ["modify", "--cleanup-algorithm", self._cleanup, f"{self.number}"],
             self.config.name, dryrun=dryrun
         )

@@ -1,133 +1,97 @@
+from dataclasses import asdict
 import os
-import os.path
 import subprocess
 import sys
 from contextlib import contextmanager
 from subprocess import CalledProcessError
+from typing import List, Optional
 
-from .util import restrict_keys, selective_merge
+from .config import RepoConfig, RetentionConfig, SnapborgSnapperConfig
+from .exceptions import BindMountError, BorgExecutionException, PermissionError as SnapborgPermissionError
 
-DEFAULT_REPO_CONFIG = {
-    "storage": {
-        "encryption": "none",
-        "compression": "auto,zstd,4"
-    },
-    "retention": {
-        "keep_last": 1,
-        "keep_hourly": 0,
-        "keep_daily": 7,
-        "keep_weekly": 4,
-        "keep_monthly": 3,
-        "keep_yearly": 5
-    }
-}
-
+BORG_RETURNCODE_ARCHIVE_EXISTS = 30
 
 class BorgRepo:
-    def __init__(self, snapper_config: str, repopath: str, compression: str, retention, encryption="none",
-                 passphrase=None):
-        self.repopath = repopath
-        self.compression = compression
-        self.retention = retention
-        self.encryption = encryption
-        self.passphrase = passphrase
+    def __init__(self, snapper_config: SnapborgSnapperConfig, repo_config: RepoConfig, dryrun: bool = False):
         self.snapper_config = snapper_config
+        self.repo_config = repo_config
+        self.dryrun = dryrun
         self.is_interactive = os.isatty(sys.stdout.fileno())
 
-    def backup(self, backup_name, path, exclude_patterns=[], timestamp=None, dryrun=False, mount_path=None):
+    def backup(self, backup_name, path, timestamp=None, mount_path=None):
 
-        borg_create = ["create",
-                       "--one-file-system",
-                       "--stats",
-                       "--exclude-caches",
-                       "--checkpoint-interval", "600",
-                       "--compression", self.compression]
+        borg_create_args = []
+        if not self.dryrun:
+            # --dry-run and --stats are mutually exclusive
+            borg_create_args += ("--stats",)
         if timestamp:
-            borg_create += ("--timestamp", timestamp.isoformat())
-        for e in exclude_patterns:
-            borg_create += ("--exclude", e)
+            borg_create_args += ("--timestamp", timestamp.isoformat())
+
+        # add given parameters from repo config
+        for param, value in self.repo_config.create_params.items():
+            param = "--" + param.replace("_", "-")
+            if isinstance(value, list):
+                for v in value:
+                    borg_create_args += (param, str(v))
+            elif value == True:
+                borg_create_args += (param,)
+            elif value != False:
+                borg_create_args += (param, str(value))
 
         if self.is_interactive:
-            borg_create.append("--progress")
+            borg_create_args.append("--progress")
 
-        repospec = f"{self.repopath}::{backup_name}"
-        args = borg_create + [repospec]
+        repospec = f"{self.repo_path}::{backup_name}"
+        args = borg_create_args + [repospec]
 
         if mount_path is not None:
             with bind_mount(mount_path, path):
-                launch_borg(
-                    args + [mount_path],
-                    self.passphrase,
-                    print_output=self.is_interactive,
-                    dryrun=dryrun,
-                )
+                self.launch_borg("create", args + [mount_path])
         else:
-            launch_borg(
-                args + ['.'],
-                self.passphrase,
-                print_output=self.is_interactive,
-                dryrun=dryrun,
-                cwd=path,
-            )
+            self.launch_borg("create", args + ['.'], cwd=path)
 
-    def delete(self, backup_name, dryrun=False):
-        borg_delete = ["delete", f"{self.repopath}::{backup_name}"]
-        launch_borg(borg_delete, self.passphrase,
-                    print_output=self.is_interactive,
-                    dryrun=dryrun)
+    def delete(self, backup_name: str):
+        self.launch_borg("delete", [f"{self.repo_path}::{backup_name}"])
 
-    def prune(self, override_retention_settings=None, dryrun=False):
-        override_retention_settings = override_retention_settings or {}
-        borg_prune_invocation = ["prune", "--list"]
-        retention_settings = selective_merge(
-            override_retention_settings, self.retention, restrict_keys=True)
-        for name, value in retention_settings.items():
-            borg_prune_invocation += (f"--{name.replace('_', '-')}",
-                                      str(value))
+    def prune(self):
+        borg_prune_args = ["--list"]
+        for name, value in asdict(self.retention_config).items():
+            borg_prune_args += (f"--{name.replace('_', '-')}", str(value))
 
-        borg_prune_invocation += ("--glob-archives", f"{self.snapper_config}-*")
-        borg_prune_invocation.append(self.repopath)
+        borg_prune_args += ("--glob-archives", f"{self.snapper_config.name}-*")
+        borg_prune_args.append(self.repo_path)
+        
+        self.launch_borg("prune", borg_prune_args)
 
-        launch_borg(
-            borg_prune_invocation,
-            self.passphrase,
-            print_output=self.is_interactive,
-            dryrun=dryrun
-        )
+    @property
+    def repo_path(self) -> str:
+        return self.repo_config.path
 
-    def get_retention_config(self):
-        return self.retention
+    @property
+    def retention_config(self) -> RetentionConfig:
+        return self.repo_config.retention
+
+    @property
+    def name(self) -> str:
+        return self.repo_config.name
 
     @classmethod
-    def create_from_config(cls, config):
-        if not config["repo"]:
-            raise Exception("Target repository not given!")
-        if not config["name"]:
-            raise Exception("Snapper config name not given!")
-        borgrepo = config["repo"]
-        snapper_config = config["name"]
-        # inherit default settings
-        config = selective_merge(config, DEFAULT_REPO_CONFIG)
-        encryption = config["storage"]["encryption"]
-        compression = config["storage"]["compression"]
-        retention = restrict_keys(
-            DEFAULT_REPO_CONFIG["retention"], config["retention"])
-        password = None
-        if encryption == "none":
-            pass
-        elif encryption == "repokey" or encryption == "repokey-blake2":
-            password = config["storage"]["encryption_passphrase"]
-        else:
-            raise Exception("Invalid or unsupported encryption mode given!")
-        return cls(snapper_config, borgrepo, compression, retention=retention, encryption=encryption,
-                   passphrase=password)
+    def create_from_config(cls, snapper_config: SnapborgSnapperConfig, repo_config: RepoConfig, dryrun=False):
+        return cls(snapper_config, repo_config, dryrun)
+    
+    def launch_borg(self, cmd: str, args: List[str], cwd: Optional[str] = None, common_args: List[str] = []):
+        if self.dryrun:
+            # this assumes that every borg command issued supports the --dry-run flag
+            args.insert(0, "--dry-run")
+        return launch_borg(common_args + [cmd] + args, print_output=self.is_interactive,
+                           cwd=cwd, env=self.repo_config.environment)
 
 
-def launch_borg(args, password=None, print_output=False, dryrun=False, cwd=None):
+def launch_borg(args, print_output=False, cwd=None, env: dict = {}):
     """
     launch borg and supply the password by environment
 
-    raises a CalledProcessError when borg doesn't return with 0
+    raises a CalledProcessError when borg returns with 2
     """
 
     cmd = ["borg"] + args
@@ -135,29 +99,30 @@ def launch_borg(args, password=None, print_output=False, dryrun=False, cwd=None)
     if print_output:
         print(f"$ {' '.join(cmd)}")
 
-    if not dryrun:
-        # Start with a copy of the current environment
-        env = os.environ.copy()
+    # Start with a copy of the current environment
+    env = os.environ.copy()
 
-        if password:
-            env['BORG_PASSPHRASE'] = password
+    for key, value in env.items():
+        env[key] = value
+    
+    env['BORG_EXIT_CODES'] = 'modern'
 
-        # TODO: parse output from JSON log lines
-        try:
-            if print_output:
-                subprocess.run(cmd, env=env, check=True, cwd=cwd)
-            else:
-                subprocess.check_output(cmd,
-                                        stderr=subprocess.STDOUT,
-                                        env=env,
-                                        cwd=cwd)
-        except CalledProcessError as e:
-            if e.returncode == 1:
-                # warning(s) happened, don't raise
-                if not print_output:
-                    print(f"Borg command execution gave warnings:\n{e.output.decode()}")
-            else:
-                raise
+    # TODO: parse output from JSON log lines
+    try:
+        if print_output:
+            subprocess.run(cmd, env=env, check=True, cwd=cwd)
+        else:
+            subprocess.check_output(cmd,
+                                    stderr=subprocess.STDOUT,
+                                    env=env,
+                                    cwd=cwd)
+    except CalledProcessError as e:
+        if e.returncode == 1 or 100 <= e.returncode <= 127:
+            # warning(s) happened, don't raise
+            if not print_output:
+                print(f"Borg command execution gave warnings:\n{e.output.decode()}")
+        else:
+            raise BorgExecutionException(e.returncode)
 
 
 @contextmanager
@@ -169,14 +134,19 @@ def bind_mount(mount_path, target_path):
     try:
         os.makedirs(mount_path, exist_ok=True)
     except PermissionError as exc:
-        raise Exception("Failed to create bind mount dir; most likely you should re-run this command as root") from exc
+        raise SnapborgPermissionError("Failed to create bind mount dir; most likely "
+                                      "you should re-run this command as root") from exc
 
     # If we didn't properly clean this up in previous invocations
-    while os.path.ismount(mount_path):
-        subprocess.check_call(['umount', mount_path])
-
-    subprocess.check_call(['mount', '--bind', target_path, mount_path])
     try:
-        yield
-    finally:
-        subprocess.check_call(['umount', mount_path])
+        while os.path.ismount(mount_path):
+            subprocess.check_call(['umount', mount_path])
+
+        subprocess.check_call(['mount', '--bind', target_path, mount_path])
+        try:
+            yield
+        finally:
+            subprocess.check_call(['umount', mount_path])
+    except subprocess.CalledProcessError as e:
+        raise BindMountError from e
+

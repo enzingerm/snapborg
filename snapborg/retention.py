@@ -1,10 +1,13 @@
 from datetime import datetime, time, timedelta
 
+from typing import List
+
 from .util import split
+from .snapper import SnapperSnapshot
 
 
 def get_retained_snapshots(snapshots, date_key, keep_last=1, keep_minutely=0, keep_hourly=0,
-                           keep_daily=0, keep_weekly=0, keep_monthly=0, keep_yearly=0):
+                           keep_daily=0, keep_weekly=0, keep_monthly=0, keep_yearly=0) -> List[SnapperSnapshot]:
     """
     Given a list of snapshots and retainment settings, return a sublist consisting
     of those snapshots which should be retained.

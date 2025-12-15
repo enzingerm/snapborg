@@ -11,7 +11,7 @@ setup(
     long_description=(
         "Backup your snapper snapshots with Borg.\nsnapborg is intended"
         "for allowing automated backups of snapshots to external hard drives,"
-        "but it can be used to sync snapshots to a local borg repository as "
+        "but it can be used to sync snapshots to remote borg repositories as "
         "well.\nBased on sftbackup and inspired by borgmatic, snapborg is just "
         "a wrapper for Borg. You can use Borg commands directly if you prefer."
     ),
@@ -19,14 +19,16 @@ setup(
     maintainer_email="marinus@enzingerm.de",
     url="https://github.com/enzingerm/snapborg",
     license="GPL3+",
+    python_requires=">=3.7, <4",
     install_requires=[
         "pyyaml",
         "packaging",
+        "dacite"
     ],
     packages=find_packages(exclude=["tests*"]),
     entry_points={
         "console_scripts": [
-            "snapborg = snapborg.commands.snapborg:main",
+            "snapborg = snapborg.commands:main",
         ],
     },
     data_files=[

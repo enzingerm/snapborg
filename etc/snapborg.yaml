@@ -1,37 +1,54 @@
-# snapborg sample configuration file. Default values are used for the sample
-# configuration, thus can be omitted or changed
+# snapborg v0.2+ sample configuration file.
+
+# Structure of this file:
+# - mandatory values which need to be given by the user are written as ~ (None)
+# - default configuration values are shown but can be commented out or removed
+# - non-default example configuration is commented out by one hashtag #
 
 
-# List of mappings of snapper configs to their borg repos
+
+# List of mappings of snapper configs to their borg repos. The same repo can be used for multiple snapper configs
 configs:
-    # MANDATORY: name of the snapper config
-  - name: ~
-    # MANDATORY: borg repo target, e. g. backupuser@backuphost:reponame
-    repo: ~
-    # if this is set to true, borg does not neccessarily fail when a backup fails
-    fault_tolerant_mode: false
-    # snapborg fails when the most recent snapshot transferred successfully is
-    # older than the time period given here. Set to '0d' to disable this behaviour
-    last_backup_max_age: 0d
-    # archive creation/storage options
-    storage:
-      # use either none or repokey encryption, defaults to none
-      encryption: none
-      # MANDATORY when using repokey: literal key passphrase or path to file
-      # containing the key passphrase. Ignored when using none encryption
-      encryption_passphrase: ~
-      # compression configuration, see borg manual
-      compression: auto,zstd,4
+  - name: ~ ## the name of the snapper config
+    repos:
+      - name: ~ ## Arbitrary unique name for the borg repo which should stay the same even if the path could be changed in the future
+                ## only lower case letters, digits and _ allowed. This is important for snapborg to know
+                ## to which borg repositories the snapshots have already been transferred.
 
-    # define retention settings for borg independently from snapper
-    retention:
-      keep_last: 1
-      keep_hourly: 0
-      keep_daily: 7
-      keep_weekly: 4
-      keep_monthly: 3
-      keep_yearly: 5
-    # exclude patterns (see borg help patterns)
-    exclude_patterns: []
+        path: ~ ## Borg repo path
 
+        ## If the last successful backup to this repo is older than the specified number of days, snapborg will fail loudly
+        ## Can be set to true (default, no backup errors are tolerated), false (making the repo completely optional) or any
+        ## number of days e.g. 30d
+        fail_after: true
 
+        ## Specify any environment variables (will be converted to UPPERCASE) which will be provided to borg
+        # environment:
+        #   borg_passphrase: my_unique_secret
+
+        ## Parameters directly passed to borg create in their long form 
+        create_params:
+          ## per default, snapborg passes the following arguments to borg create:
+          ## to disable a parameter, set it to false
+          compression: auto,zstd,4
+          one_file_system: true
+          exclude_caches: true
+          checkpoint_interval: 600
+
+          ## Underscores will be translated to dashes, flags should get true as value
+          # numeric_owner: true
+
+          ## If a param should be supplied multiple times (e.g. multiple exclude patterns) it needs to be specified as a list
+          # exclude: ["sh:home/*/.thumbnails", "*.pyc"]
+
+        ## Retention settings which define which snapshots 
+        retention:
+          keep_last: 1
+          keep_hourly: 0
+          keep_daily: 7
+          keep_weekly: 4
+          keep_monthly: 3
+          keep_yearly: 5
+      ## multiple repos can be specified
+      # - name: repo_2
+      #   path: user@host:repo-2

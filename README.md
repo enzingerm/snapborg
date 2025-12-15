@@ -2,15 +2,21 @@
 
 Automated backups of [snapper](https://github.com/openSUSE/snapper) snapshots to [borg](https://github.com/borgbackup/borg) repositories. Based on [sftbackup](https://github.com/SFTtech/sftbackup) and inspired by [borgmatic](https://torsion.org/borgmatic/).
 
+## USE WITH CAUTION - Snapborg 0.2 is still alpha and might corrupt/lose your data
+
 ## How it works
-Snapper operates on one or many configs for filesystems or subvolumes, for each of which automated snapshots are created. Often only a single config called `root` is used. The `snapborg` configuration file (`/etc/snapborg.yaml`) is used to create a mapping `(snapper config) <-> (borg repository)` and then those snapshots created by `snapper` are transferred to the remote (or local) borg repository.
+Snapper operates on one or many configs for filesystems or subvolumes, for each of which automated snapshots are created. Often only a single config called `root` is used. The `snapborg` configuration file (`/etc/snapborg.yaml`) is used to create a one-to-many mapping `(snapper config) --> (borg repositories)` and then those snapshots created by `snapper` are transferred to the remote (or local) borg repositories. Bookkeeping is simply done by the means of snapper userdata key/value pairs.
 
 A very basic snapborg configuration would look like this:
 ```yaml
 configs:
   - name: root
-    repo: backupuser@backuphost:root
+    repos:
+      - name: root_repo
+        path: backupuser@backuphost:root
 ```
+
+### Retention settings
 
 Normally you might not want to synchronize all the snapper snapshots to the remote backup destination, thus per-repo retention settings can be configured to determine which snapshots will actually be backed up. Note that by default, old snapshots will be pruned from the borg archive according to the retention settings, unless the `--no-prune` flag is given.
 
@@ -20,17 +26,38 @@ Snapper creates hourly snapshots, but you only want to transfer the most recent 
 ```yaml
 configs:
   - name: snapper_config_1
-    ...
-    retention:
-      keep_last: 1
-      keep_hourly: 0
-      keep_daily: 0
-      keep_weekly: 0
-      keep_monthly: 6
-      keep_yearly: 3
-    ...
+    repos:
+      - name: main_repo
+        ...
+        retention:
+          keep_last: 1
+          keep_hourly: 0
+          keep_daily: 0
+          keep_weekly: 0
+          keep_monthly: 6
+          keep_yearly: 3
+        ...
 ```
 
+### Parameters for borg
+
+Parameters supplied to `borg create` for the backup can be specified as follows. The
+parameters should be given in their long form and a underscore _ should be used instead
+of the dash -
+```yaml
+configs:
+  - name: snapper_config_1
+    repos:
+      - name: main_repo
+        ...
+        create_params:
+          numeric_owner: true # parameters without arguments are given as boolean values,
+                              # use false to disable a parameter which would be set per default
+          exclude: ["sh:home/*/.thumbnails", "*.pyc"] # if a parameter should be given multiple
+                                                      # times, a list can be given
+          exclude_if_present: .cachedir # a normal parameter with one argument
+        ...
+```
 
 ### Fault tolerant mode
 In some scenarios, the backup target repository is not permanently reachable, e. g. when an 
@@ -40,12 +67,22 @@ can be enabled by specifying the following in `snapborg.yaml`:
 ```yaml
 configs:
   - name: snapper_config_1
-    ...
-    fault_tolerant_mode: true
-    last_successful_backup_max_age: <time period>
-    ...
+    repos:
+      - name: main_repo
+        ...
+        fail_after: true # this repo is mandatory
+        ...
+      - name: secondary_repo
+        ...
+        fail_after: 30d # this repo fails when the most recent transferred snapshot is
+                        # older than 30 days
+        ...
+      - name: external_hdd
+        ...
+        fail_after: false # this repo is completely optional
+        ...
 ```
-`<time period>` must be given as days (e.g. `"3d"`) or as hours (e.g. `"6h"`) and specifies the maximum age of the last backup successfully transferred to the borg repo. When `snapborg` cannot transfer a recent snapshot to the repository, it will only fail if the last snapshot which was transferred during an earlier executions older than the given time period.
+If a time period is defined for `fail_after`, it must be given as days (e.g. `"3d"`) or as hours (e.g. `"6h"`) and specifies the maximum age of the last backup successfully transferred to the borg repo. When `snapborg` cannot transfer a recent snapshot to the repository, it will only fail if the most recent snapshot which was transferred during an earlier execution is older than the given time period.
 
 ## Usage
 
@@ -96,11 +133,42 @@ You will find relevant systemd units in `usr/lib/systemd/system/`.
 - *Python*:
   - packaging
   - pyyaml
+  - dacite
 
 
 # Changelog
 
 
+## 0.2-alpha
+- A new configuration file format has been introduced which allows for multiple borg repos
+  for a single snapper config
+  - every borg repo now gets a unique name so that the path can be changed in the future
+    without affecting the snapborg/snapper metadata
+  - retention settings can be different for each borg repo
+  - a borg repo can be completely optional (so that snapborg doesn't fail when the repo is
+    unreachable)
+  - also a time limit can be configured which specifies the maximum age of the last successfully
+    transferred snapshot to the repo, if the time limit is exceeded, the snapborg call fails
+    This is equivalent to the previous `fault_tolerant_mode` in combination with `last_backup_max_age`
+  - per default, a borg repo is mandatory, so snapborg fails if any error occurs during backup
+    or the repo is unaccessible
+  - there is a compatibility layer in the code which ensures backwards compatibility to the old
+    configuration file format
+  - when the user switches to the new configuration file format, and assigns a unique name to the
+    borg repo, the metadata in the snapper snapshots will automatically be updated to reference
+    the new (named) repo config. This way, the existing archives won't have to be recreated.
+
+- Ability to provide arbitrary parameters to `borg create` via `create_params` config section
+- Ability to provide arbitrary environment variables to borg via `environment` config section
+- Streamlined the configuration and put some directives to a more logical place
+  - `exclude_patterns` is now just a normal entry under `create_params`
+  - for `compression`, the same applies
+  - `borg_passphrase` is now just a normal entry under `environment`
+
+#### Removed Features:
+- `snapborg init` command
+- provide a file name as borg passphrase so that the file contents is used as the actual passphrase
+  
 
 ## 0.1.1
   - Remove `--bind-mount` parameter which was needed to strip the snapper snapshot prefix 
