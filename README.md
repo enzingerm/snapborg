@@ -1,6 +1,9 @@
+## Snapborg 0.2-alpha is [here](https://github.com/enzingerm/snapborg/tree/0.2-dev) and needs to be tested, feedback is highly appreciated!
+
 # snapborg
 
 Automated backups of [snapper](https://github.com/openSUSE/snapper) snapshots to [borg](https://github.com/borgbackup/borg) repositories. Based on [sftbackup](https://github.com/SFTtech/sftbackup) and inspired by [borgmatic](https://torsion.org/borgmatic/).
+
 
 ## How it works
 Snapper operates on one or many configs for filesystems or subvolumes, for each of which automated snapshots are created. Often only a single config called `root` is used. The `snapborg` configuration file (`/etc/snapborg.yaml`) is used to create a mapping `(snapper config) <-> (borg repository)` and then those snapshots created by `snapper` are transferred to the remote (or local) borg repository.
