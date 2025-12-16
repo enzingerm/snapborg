@@ -7,12 +7,19 @@ from subprocess import CalledProcessError
 from typing import List, Optional
 
 from .config import RepoConfig, RetentionConfig, SnapborgSnapperConfig
-from .exceptions import BindMountError, BorgExecutionException, PermissionError as SnapborgPermissionError
+from .exceptions import (
+    BindMountError,
+    BorgExecutionException,
+    PermissionError as SnapborgPermissionError,
+)
 
 BORG_RETURNCODE_ARCHIVE_EXISTS = 30
 
+
 class BorgRepo:
-    def __init__(self, snapper_config: SnapborgSnapperConfig, repo_config: RepoConfig, dryrun: bool = False):
+    def __init__(
+        self, snapper_config: SnapborgSnapperConfig, repo_config: RepoConfig, dryrun: bool = False
+    ):
         self.snapper_config = snapper_config
         self.repo_config = repo_config
         self.dryrun = dryrun
@@ -48,7 +55,7 @@ class BorgRepo:
             with bind_mount(mount_path, path):
                 self.launch_borg("create", args + [mount_path])
         else:
-            self.launch_borg("create", args + ['.'], cwd=path)
+            self.launch_borg("create", args + ["."], cwd=path)
 
     def delete(self, backup_name: str):
         self.launch_borg("delete", [f"{self.repo_path}::{backup_name}"])
@@ -60,7 +67,7 @@ class BorgRepo:
 
         borg_prune_args += ("--glob-archives", f"{self.snapper_config.name}-*")
         borg_prune_args.append(self.repo_path)
-        
+
         self.launch_borg("prune", borg_prune_args)
 
     @property
@@ -76,15 +83,23 @@ class BorgRepo:
         return self.repo_config.name
 
     @classmethod
-    def create_from_config(cls, snapper_config: SnapborgSnapperConfig, repo_config: RepoConfig, dryrun=False):
+    def create_from_config(
+        cls, snapper_config: SnapborgSnapperConfig, repo_config: RepoConfig, dryrun=False
+    ):
         return cls(snapper_config, repo_config, dryrun)
-    
-    def launch_borg(self, cmd: str, args: List[str], cwd: Optional[str] = None, common_args: List[str] = []):
+
+    def launch_borg(
+        self, cmd: str, args: List[str], cwd: Optional[str] = None, common_args: List[str] = []
+    ):
         if self.dryrun:
             # this assumes that every borg command issued supports the --dry-run flag
             args.insert(0, "--dry-run")
-        return launch_borg(common_args + [cmd] + args, print_output=self.is_interactive,
-                           cwd=cwd, env=self.repo_config.environment)
+        return launch_borg(
+            common_args + [cmd] + args,
+            print_output=self.is_interactive,
+            cwd=cwd,
+            env=self.repo_config.environment,
+        )
 
 
 def launch_borg(args, print_output=False, cwd=None, env: dict = {}):
@@ -104,18 +119,15 @@ def launch_borg(args, print_output=False, cwd=None, env: dict = {}):
 
     for key, value in env.items():
         env[key] = value
-    
-    env['BORG_EXIT_CODES'] = 'modern'
+
+    env["BORG_EXIT_CODES"] = "modern"
 
     # TODO: parse output from JSON log lines
     try:
         if print_output:
             subprocess.run(cmd, env=env, check=True, cwd=cwd)
         else:
-            subprocess.check_output(cmd,
-                                    stderr=subprocess.STDOUT,
-                                    env=env,
-                                    cwd=cwd)
+            subprocess.check_output(cmd, stderr=subprocess.STDOUT, env=env, cwd=cwd)
     except CalledProcessError as e:
         if e.returncode == 1 or 100 <= e.returncode <= 127:
             # warning(s) happened, don't raise
@@ -134,19 +146,19 @@ def bind_mount(mount_path, target_path):
     try:
         os.makedirs(mount_path, exist_ok=True)
     except PermissionError as exc:
-        raise SnapborgPermissionError("Failed to create bind mount dir; most likely "
-                                      "you should re-run this command as root") from exc
+        raise SnapborgPermissionError(
+            "Failed to create bind mount dir; most likely " "you should re-run this command as root"
+        ) from exc
 
     # If we didn't properly clean this up in previous invocations
     try:
         while os.path.ismount(mount_path):
-            subprocess.check_call(['umount', mount_path])
+            subprocess.check_call(["umount", mount_path])
 
-        subprocess.check_call(['mount', '--bind', target_path, mount_path])
+        subprocess.check_call(["mount", "--bind", target_path, mount_path])
         try:
             yield
         finally:
-            subprocess.check_call(['umount', mount_path])
+            subprocess.check_call(["umount", mount_path])
     except subprocess.CalledProcessError as e:
         raise BindMountError from e
-

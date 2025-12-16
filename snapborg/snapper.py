@@ -23,7 +23,9 @@ def check_snapper():
     line = [l for l in output.splitlines() if l.startswith("snapper")][0]
     snapper_version = line.split(" ")[1]
     if version.parse(snapper_version) < version.parse("0.8.6"):
-        raise SnapperTooOldException(f"Snapper version {snapper_version} is too old, must be > 0.8.6!")
+        raise SnapperTooOldException(
+            f"Snapper version {snapper_version} is too old, must be > 0.8.6!"
+        )
 
 
 def run_snapper(args, config: Optional[str] = None, dryrun=False):
@@ -36,12 +38,7 @@ def run_snapper(args, config: Optional[str] = None, dryrun=False):
     except AttributeError:
         check_snapper()
         run_snapper.snapper_version_ok = True
-    args_new = [
-        "snapper",
-        *([] if not config else ["-c", config]),
-        "--jsonout",
-        *args
-    ]
+    args_new = ["snapper", *([] if not config else ["-c", config]), "--jsonout", *args]
     if dryrun:
         print(f"$ {' '.join(args_new)}")
         return None
@@ -68,7 +65,7 @@ class SnapperConfig:
 
     @property
     def is_root(self):
-        return self.path == '/'
+        return self.path == "/"
 
     def get_snapshots(self):
         if not self._snapshots:
@@ -79,14 +76,14 @@ class SnapperConfig:
                 if info["number"] != 0
             ]
         return self._snapshots
-    
-    def get_archive_name(self, snapshot: 'SnapperSnapshot') -> str:
+
+    def get_archive_name(self, snapshot: "SnapperSnapshot") -> str:
         return f"{self.name}-{snapshot.number}-{snapshot.date.isoformat()}"
 
     @classmethod
     def get(cls, config_name: str):
         return cls(config_name, run_snapper(["get-config"], config_name))
-    
+
     @contextmanager
     def prevent_cleanup(self, snapshots=None, dryrun=False):
         """
@@ -98,7 +95,7 @@ class SnapperConfig:
 
         for s in snapshots:
             s.prevent_cleanup(dryrun=dryrun)
-        
+
         try:
             yield self
         finally:
@@ -116,7 +113,7 @@ class SnapperSnapshot:
         if snapborg_backup:
             for repo in snapborg_backup.lstrip(" [").rstrip(" ]").split(";"):
                 self._is_backed_up.add(repo.strip())
-        elif snapborg_backup_legacy == 'true':
+        elif snapborg_backup_legacy == "true":
             self._is_backed_up.add(LEGACY_REPO_NAME)
         self._cleanup = info["cleanup"]
 
@@ -145,8 +142,15 @@ class SnapperSnapshot:
 
     def purge_userdata(self, dryrun=False):
         run_snapper(
-            ["modify", "--userdata", f"{SNAPBORG_BACKUP_KEY}=,{SNAPBORG_BACKUP_KEY_LEGACY}=", f"{self.number}"],
-            self.config.name, dryrun=dryrun)
+            [
+                "modify",
+                "--userdata",
+                f"{SNAPBORG_BACKUP_KEY}=,{SNAPBORG_BACKUP_KEY_LEGACY}=",
+                f"{self.number}",
+            ],
+            self.config.name,
+            dryrun=dryrun,
+        )
 
     def set_backup_status(self, repo: Union[str, RepoConfig], status: bool, dryrun=False):
         repo = repo.name if isinstance(repo, RepoConfig) else repo
@@ -154,14 +158,23 @@ class SnapperSnapshot:
             self._is_backed_up.add(repo)
         else:
             self._is_backed_up.discard(repo)
-        userdata = '[' + ';'.join(self._is_backed_up) + ']'
+        userdata = "[" + ";".join(self._is_backed_up) + "]"
         legacy_userdata = (
-                f",{SNAPBORG_BACKUP_KEY_LEGACY}=" + 'true' if status else ''
-            ) if repo == LEGACY_REPO_NAME else ""
+            (f",{SNAPBORG_BACKUP_KEY_LEGACY}=" + "true" if status else "")
+            if repo == LEGACY_REPO_NAME
+            else ""
+        )
 
-        run_snapper(["modify", "--userdata", f"{SNAPBORG_BACKUP_KEY}={userdata}{legacy_userdata}",
-                     f"{self.number}"], self.config.name, dryrun=dryrun)
-    
+        run_snapper(
+            [
+                "modify",
+                "--userdata",
+                f"{SNAPBORG_BACKUP_KEY}={userdata}{legacy_userdata}",
+                f"{self.number}",
+            ],
+            self.config.name,
+            dryrun=dryrun,
+        )
 
     def prevent_cleanup(self, dryrun=False):
         """
@@ -169,8 +182,7 @@ class SnapperSnapshot:
         """
 
         run_snapper(
-            ["modify", "--cleanup-algorithm", "", f"{self.number}"],
-            self.config.name, dryrun=dryrun
+            ["modify", "--cleanup-algorithm", "", f"{self.number}"], self.config.name, dryrun=dryrun
         )
 
     def restore_cleanup_state(self, dryrun=False):
@@ -179,5 +191,6 @@ class SnapperSnapshot:
         """
         run_snapper(
             ["modify", "--cleanup-algorithm", self._cleanup, f"{self.number}"],
-            self.config.name, dryrun=dryrun
+            self.config.name,
+            dryrun=dryrun,
         )
