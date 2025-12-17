@@ -115,12 +115,7 @@ def launch_borg(args, print_output=False, cwd=None, env: dict = {}):
         print(f"$ {' '.join(cmd)}")
 
     # Start with a copy of the current environment
-    env = os.environ.copy()
-
-    for key, value in env.items():
-        env[key] = value
-
-    env["BORG_EXIT_CODES"] = "modern"
+    env = {**os.environ.copy(), **env, "BORG_EXIT_CODES": "modern"}
 
     # TODO: parse output from JSON log lines
     try:
