@@ -25,7 +25,7 @@ from ..exceptions import (
     SnapborgBaseException,
     SnapperExecutionException,
 )
-from ..results import CommandResult, ResultStatus
+from ..results import Command, CommandResult, ResultStatus
 from ..borg import BORG_RETURNCODE_ARCHIVE_EXISTS, BorgRepo
 from ..retention import get_retained_snapshots
 from ..snapper import SnapperConfig, SnapperSnapshot
@@ -145,7 +145,8 @@ def backup(
     print("Backup started...")
     results = CommandResult.from_children(
         [backup_config(config, recreate, dryrun, absolute_paths) for config in snapper_configs],
-        "Backup of snapper config(s): " + ", ".join(s.name for s in snapper_configs),
+        task_description="Backup of snapper config(s): "
+        + ", ".join(s.name for s in snapper_configs),
     )
     print("\nBackup results:")
     print(results.get_output())
@@ -174,19 +175,23 @@ def backup_config(config: SnapborgSnapperConfig, recreate, dryrun, absolute_path
             mount_path = os.path.join(mount_path, os.path.relpath(snapper_config.path, "/"))
 
     repo_results = [
-        backup_to_repo(
-            BorgRepo.create_from_config(config, repo_config, dryrun),
-            snapper_config,
-            recreate,
-            dryrun,
-            mount_path=mount_path,
-        )
+        Command(
+            f"Backup to repo '{repo_config.name}' (at {repo_config.path})",
+            lambda: backup_to_repo(
+                BorgRepo.create_from_config(config, repo_config, dryrun),
+                snapper_config,
+                recreate,
+                dryrun,
+                mount_path=mount_path,
+            ),
+        )()
         for repo_config in config.repos
     ]
 
     return CommandResult.from_children(
         repo_results,
-        f"Backup of snapper config {config.name}" + (" (recreating archives)" if recreate else ""),
+        task_description=f"Backup of snapper config {config.name}"
+        + (" (recreating archives)" if recreate else ""),
     )
 
 
@@ -225,9 +230,17 @@ def backup_to_repo(
     try:
         with snapper_config.prevent_cleanup(snapshots=candidates, dryrun=dryrun):
             snapshot_results = [
-                backup_snapshot(
-                    snapper_config, repo, candidate, recreate, dryrun=dryrun, mount_path=mount_path
-                )
+                Command(
+                    f"Backup of snapshot number {candidate.number}, created at {candidate.date.isoformat()}",
+                    lambda: backup_snapshot(
+                        snapper_config,
+                        repo,
+                        candidate,
+                        recreate,
+                        dryrun=dryrun,
+                        mount_path=mount_path,
+                    ),
+                )()
                 for candidate in candidates
             ]
     except SnapperExecutionException as e:
@@ -235,18 +248,13 @@ def backup_to_repo(
             f"Snapper error during handling of cleanup algorithm: {e}", children=snapshot_results
         )
 
-    repo_string = f"{repo.repo_config.name} (at {repo.repo_config.path})"
     if any(it.status == ResultStatus.ERR for it in snapshot_results):
         # check if this borg repo is allowed to fail
         fail_after = repo.repo_config.get_fail_after()
         if fail_after == False:
-            return CommandResult.warn(
-                f"Backup to optional repo {repo_string}", children=snapshot_results
-            )
+            return CommandResult.warn("Errors ignored on optional repo!", children=snapshot_results)
         elif fail_after == True:
-            return CommandResult.err(
-                f"Backup to mandatory repo {repo_string}", children=snapshot_results
-            )
+            return CommandResult.err(children=snapshot_results)
         else:
             # TODO handle error
             snapshots = snapper_config.get_snapshots()
@@ -259,14 +267,12 @@ def backup_to_repo(
             newest_backed_up = max(backed_up, key=lambda x: x.date)
             if newest_backed_up.date + fail_after < datetime.now():
                 return CommandResult.err(
-                    f"Backup to (time limited) optional repo {repo_string}:"
-                    "Newest snapshot transferred to the borg repo is older than "
+                    "Newest snapshot transferred to the repo is older than "
                     f"allowed as per the 'fail_after' directive ({newest_backed_up.date}!",
                     children=snapshot_results,
                 )
             else:
                 return CommandResult.warn(
-                    f"Backup to (time limited) optional repo {repo_string}:"
                     "Errors occured during backup but the most recent snapshot"
                     " is newer than the limit allowed as per the 'fail_after' directive!",
                     children=snapshot_results,
@@ -274,7 +280,7 @@ def backup_to_repo(
 
     else:
         # no errors happened
-        return CommandResult.from_children(snapshot_results, f"Backup to repo {repo_string}")
+        return CommandResult.from_children(snapshot_results)
 
 
 def backup_snapshot(
@@ -300,7 +306,7 @@ def backup_snapshot(
             backup_name, snapshot.path, timestamp=snapshot.date_utc, mount_path=mount_path
         )
         snapshot.set_backup_status(borg_repo.name, True, dryrun)
-        return CommandResult.ok(f"Successfully backed up snapshot number {snapshot.number}")
+        return CommandResult.ok()
     except BorgExecutionException as e:
         if (
             e.returncode == BORG_RETURNCODE_ARCHIVE_EXISTS
@@ -313,14 +319,10 @@ def backup_snapshot(
             #     userdata should be updated
             snapshot.set_backup_status(borg_repo.name, True)
             snapshot.set_backup_status(LEGACY_REPO_NAME, False)
-            return CommandResult.warn(f"Snapshot {snapshot.number} had already been backed up!")
-        return CommandResult.err(
-            f"Borg reported an error backing up snapshot number {snapshot.number}: {e}"
-        )
+            return CommandResult.warn(f"Snapshot had already been backed up!")
+        return CommandResult.err(f"{e}")
     except SnapperExecutionException as e:
-        return CommandResult.err(
-            f"Borg reported an error backing up snapshot number {snapshot.number}: {e}"
-        )
+        return CommandResult.err(f"{e}")
 
 
 def prune(snapper_configs, dryrun):
