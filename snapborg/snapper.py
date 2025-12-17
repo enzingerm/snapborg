@@ -146,3 +146,6 @@ class SnapperSnapshot:
             ["modify", "--cleanup-algorithm", self._cleanup, f"{self.get_number()}"],
             self.config.name, dryrun=dryrun
         )
+
+    def __str__(self):
+        return f"SnapperSnapshot({self.get_date()})"
